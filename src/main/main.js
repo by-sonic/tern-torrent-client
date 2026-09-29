@@ -5,6 +5,10 @@
 // Must be set before anything uses the pool.
 if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '16'
 
+// The interface is light (lists, a few canvases). Software rendering removes the GPU process's
+// ~100 MB of memory and its idle work, and needs no GPU acceleration to stay smooth. Must run before ready.
+require('electron').app.disableHardwareAcceleration()
+
 const path = require('node:path')
 const {
   app, BrowserWindow, Menu, Tray, Notification, dialog, ipcMain, nativeImage, nativeTheme, shell, session
@@ -85,8 +89,9 @@ async function start () {
   engine.on('state', (state) => {
     lastState = state
     if (win && !win.isDestroyed()) win.webContents.send('state', state)
-    updateTray(state)
+    updateTray({ down: state.speed.down, up: state.speed.up, active: state.torrents.filter((t) => t.state === 'downloading' || t.state === 'connecting').length })
   })
+  engine.on('stats', updateTray) // window closed: only a few numbers for the tray tooltip
   engine.on('completed', ({ name }) => {
     if (!Notification.isSupported()) return
     const note = new Notification({ title: 'Загрузка завершена', body: name, icon: ICON, silent: false })
@@ -99,8 +104,8 @@ async function start () {
   createUpdater()
   registerIpc()
   createTray()
-  const hidden = process.argv.includes('--hidden')
-  createWindow(!hidden)
+  // Started in the tray (login item): no window, so no renderer or GPU process until it is opened.
+  if (!process.argv.includes('--hidden')) createWindow(true)
   ready = true
   await openInputs([...extractLaunchInputs(process.argv), ...pendingInputs.splice(0)])
 }
@@ -156,13 +161,18 @@ function createWindow (show) {
   }
   win.loadFile(path.join(ROOT, 'src', 'renderer', 'index.html'))
   win.once('ready-to-show', () => { if (show) win.show() })
-  win.on('close', (event) => {
-    if (quitting || !engine.settings.closeToTray) return
-    event.preventDefault()
-    win.hide()
-  })
-  win.on('closed', () => { win = null })
+  // Closing to the tray really closes the window: the renderer and GPU processes exit and give their
+  // memory back. Opening it again from the tray takes a fraction of a second. 'window-all-closed' decides
+  // whether the app keeps running (tray) or quits.
+  for (const event of ['show', 'hide', 'minimize', 'restore']) win.on(event, syncObservation)
+  win.on('closed', () => { win = null; syncObservation() })
   win.webContents.on('did-finish-load', () => { if (lastState) win.webContents.send('state', lastState) })
+}
+
+/** The engine builds list snapshots only while a visible, non-minimised window is watching. */
+function syncObservation () {
+  const watching = Boolean(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized())
+  if (engine) engine.setObserved(watching)
 }
 
 nativeTheme.on('updated', () => {
@@ -206,12 +216,14 @@ function createTray () {
   ]))
 }
 
-function updateTray (state) {
+let trayLine = ''
+
+/** @param {{down: number, up: number, active: number}} stats */
+function updateTray ({ down, up, active }) {
   if (!tray) return
-  const active = state.torrents.filter((t) => t.state === 'downloading' || t.state === 'connecting').length
-  const line = active
-    ? `Tern · ↓ ${formatRate(state.speed.down)} · ↑ ${formatRate(state.speed.up)}`
-    : 'Tern'
+  const line = active ? `Tern · ↓ ${formatRate(down)} · ↑ ${formatRate(up)}` : 'Tern'
+  if (line === trayLine) return // the native call is not free; skip it when nothing changed
+  trayLine = line
   tray.setToolTip(line)
 }
 
