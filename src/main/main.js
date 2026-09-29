@@ -1,5 +1,10 @@
 'use strict'
 
+// Node's I/O thread pool (default 4 threads) is shared by file writes, DNS lookups and hashing.
+// A few slow disk operations used to starve it, which also stalled tracker and peer lookups.
+// Must be set before anything uses the pool.
+if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = '16'
+
 const path = require('node:path')
 const {
   app, BrowserWindow, Menu, Tray, Notification, dialog, ipcMain, nativeImage, nativeTheme, shell, session

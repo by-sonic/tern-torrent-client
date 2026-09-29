@@ -6,6 +6,8 @@ const { EventEmitter } = require('node:events')
 const { planQueue, moveId } = require('./queue')
 const { pieceMap, bitfieldReader } = require('./pieces')
 const { MAX_TORRENT_FILE_BYTES, MAX_TORRENT_FILES, isLocalAbsolutePath } = require('./input')
+const { loadSparseStore } = require('./sparse-store')
+const { torrentOptions, dropRarityMap } = require('./torrent-tuning')
 
 const TICK_MS = 1000
 const BITFIELD_SAVE_MS = 30_000
@@ -113,6 +115,7 @@ class Engine extends EventEmitter {
       import('webtorrent'), import('parse-torrent')
     ])
     this.parseTorrent = parseTorrent
+    this.store = await loadSparseStore()
     this.client = new WebTorrent(this.clientOptions)
     this.client.on('error', (err) => console.error('[client]', err.message))
 
@@ -389,7 +392,7 @@ class Engine extends EventEmitter {
     }
     if (!source) { entry.error = 'no-source'; return }
 
-    const opts = { path: entry.path, deselect: true, strategy: 'rarest' }
+    const opts = torrentOptions({ path: entry.path, store: this.store })
     const resumeBitfield = this._resumeBitfield(entry)
     if (resumeBitfield) opts.bitfield = resumeBitfield
 
@@ -460,6 +463,7 @@ class Engine extends EventEmitter {
   }
 
   _onMetadata (entry, torrent) {
+    dropRarityMap(torrent)
     if (torrent.files.length > MAX_TORRENT_FILES) {
       entry.error = 'too-many-files'
       this._stop(entry, { keepBitfield: false })
