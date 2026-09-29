@@ -121,6 +121,20 @@ test('downloads only the selected files, then survives a restart', async (t) => 
   await waitFor(() => stateOf(engine, id).state === 'seeding', 'seeding after restart')
 })
 
+test('finishing with seeding disabled closes stores after WebTorrent completes its callbacks', async (t) => {
+  const swarm = await makeSwarm(t)
+  const engine = await swarm.engine()
+  engine.setSettings({ seedAfterDone: false })
+  const { id, listed } = await addAndPick(swarm, engine)
+  const completed = new Promise((resolve) => engine.once('completed', resolve))
+  await engine.confirm(id, { selected: listed.map(() => true), dir: '' })
+  await withTimeout(completed, 'completion with no seeding')
+  await waitFor(() => stateOf(engine, id).state === 'done', 'completed torrent is stopped')
+  assert.ok(fs.readFileSync(downloaded(swarm, 'a.bin')).equals(swarm.a))
+  assert.ok(fs.readFileSync(downloaded(swarm, 'b.bin')).equals(swarm.b))
+  assert.equal(engine.entries.get(id).error, null)
+})
+
 test('widening the selection of a finished, stopped torrent downloads the new file', async (t) => {
   const swarm = await makeSwarm(t)
   const engine = await swarm.engine()

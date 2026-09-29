@@ -4,6 +4,27 @@ All notable changes to Tern are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-09-30
+
+### Changed
+- Torrent networking, hashing and disk work run in a dedicated process, leaving the window's event loop available for UI work.
+- Peer request refills are batched within a bounded 5 ms window. Completed file prefixes are checked once as downloads advance,
+  and peer interest checks skip the verified prefix instead of walking it again.
+- The list, file progress and saved resume state share one piece scan. File progress also correctly handles files ending
+  exactly on a piece boundary.
+- The details panel refreshes file progress less often and updates DOM/canvases only when their inputs change.
+- WebTorrent is pinned to the version covered by the scheduler/completion regression tests.
+- A bounded six-peer test at about 60 MiB/s used 21.8% less mean engine CPU time. Maximum engine stalls fell from
+  516–586 ms to 28–31 ms; throughput was maintained. See `docs/performance.md` for the measurements and their limits.
+
+### Fixed
+- Finishing with seeding disabled no longer destroys the torrent in the middle of WebTorrent's file-completion callback.
+- Healthy multi-file deletion renews its watchdog as files are moved to the Recycle Bin.
+
+### Added
+- Regression checks in the real Electron runtime, including download/pause/restart and the engine inside the packaged archive.
+- `npm run bench` now runs the bounded active-download benchmark; `npm run bench:active` repeats the comparison.
+
 ## [1.0.2] - 2026-09-29
 
 ### Changed

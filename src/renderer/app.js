@@ -109,7 +109,10 @@ function choose (id) {
 }
 
 function markSelection () {
-  for (const [id, view] of rows) view.li.setAttribute('aria-selected', String(id === selectedId))
+  for (const [id, view] of rows) {
+    const selected = String(id === selectedId)
+    if (view.li.getAttribute('aria-selected') !== selected) view.li.setAttribute('aria-selected', selected)
+  }
 }
 
 function paintStrip (view) {
@@ -142,9 +145,9 @@ function subText (t) {
 
 function updateRow (view, t) {
   view.torrent = t
-  view.li.dataset.state = t.state
+  if (view.li.dataset.state !== t.state) view.li.dataset.state = t.state
   setText(view.name, t.name, view, 'name')
-  view.name.title = t.name
+  if (view.name.title !== t.name) view.name.title = t.name
   setText(view.sub, subText(t), view, 'sub')
 
   if (view.last.state !== t.state) {
@@ -161,17 +164,21 @@ function updateRow (view, t) {
   }
 
   const hasProgress = isSelectable(t)
-  view.prog.style.visibility = hasProgress ? 'visible' : 'hidden'
+  const visibility = hasProgress ? 'visible' : 'hidden'
+  if (view.prog.style.visibility !== visibility) view.prog.style.visibility = visibility
   setText(view.pct, `${Math.floor(t.progress * 100)}%`, view, 'pct')
   const rate = t.state === 'downloading' ? `↓ ${fmtRate(t.down)}` : t.state === 'seeding' && t.up > 0 ? `↑ ${fmtRate(t.up)}` : '—'
   setText(view.speed, rate, view, 'speed')
-  view.speed.classList.toggle('dim', rate === '—')
+  if (view.last.dim !== (rate === '—')) {
+    view.last.dim = rate === '—'
+    view.speed.classList.toggle('dim', view.last.dim)
+  }
   setText(view.size, fmtBytes(t.size), view, 'size')
 
   const key = `${t.pieces}|${t.state}|${document.documentElement.dataset.scheme || ''}`
   if (view.last.map !== key) {
     view.last.map = key
-    paintStrip(view)
+    view.needsPaint = true
   }
 }
 
@@ -204,6 +211,12 @@ function renderList () {
     if (view.li !== expected) list.insertBefore(view.li, expected)
     previous = view.li
   }
+  // Finish row mutations before reading canvas geometry, avoiding a forced
+  // layout for each individual row in a long torrent list.
+  for (const t of visible) {
+    const view = rows.get(t.id)
+    if (view.needsPaint) { view.needsPaint = false; paintStrip(view) }
+  }
 
   // keep a sensible selection
   const selectable = visible.filter(isSelectable)
@@ -215,29 +228,37 @@ function renderList () {
   markSelection()
 
   const none = state.torrents.length === 0
-  $('empty').hidden = !(none || visible.length === 0)
-  $('empty-title').textContent = none ? 'Здесь пока пусто' : 'Ничего не найдено'
-  $('empty-text').textContent = none
+  const empty = !(none || visible.length === 0)
+  if ($('empty').hidden !== empty) $('empty').hidden = empty
+  text('empty-title', none ? 'Здесь пока пусто' : 'Ничего не найдено')
+  text('empty-text', none
     ? 'Перетащи сюда .torrent-файл, вставь magnet-ссылку через Ctrl+V или нажми «Добавить торрент».'
-    : 'Попробуй другой запрос или выбери другой список слева.'
-  $('empty-logo').hidden = !none
+    : 'Попробуй другой запрос или выбери другой список слева.')
+  if ($('empty-logo').hidden !== !none) $('empty-logo').hidden = !none
+}
+
+function text (id, value) {
+  const node = $(id)
+  if (node.textContent !== value) node.textContent = value
 }
 
 function renderNav () {
   for (const [name, test] of Object.entries(FILTERS)) {
     const node = document.querySelector(`[data-count="${name}"]`)
-    if (node) node.textContent = String(state.torrents.filter(test).length)
+    const count = String(state.torrents.filter(test).length)
+    if (node && node.textContent !== count) node.textContent = count
   }
   for (const button of document.querySelectorAll('.nav-item[data-filter]')) {
-    button.setAttribute('aria-current', String(button.dataset.filter === filter))
+    const current = String(button.dataset.filter === filter)
+    if (button.getAttribute('aria-current') !== current) button.setAttribute('aria-current', current)
   }
 }
 
 function renderSpeed () {
   const down = rateParts(state.speed.down)
-  $('speed-down').textContent = down.num
-  $('speed-down-unit').textContent = down.unit
-  $('speed-up').textContent = fmtRate(state.speed.up)
+  text('speed-down', down.num)
+  text('speed-down-unit', down.unit)
+  text('speed-up', fmtRate(state.speed.up))
 
   // one sample per second, however often the engine pushes state
   const now = Date.now()
@@ -250,10 +271,14 @@ function renderSpeed () {
 
   const running = state.torrents.some((t) => LIVE_STATES.has(t.state) || t.state === 'seeding')
   const toggle = $('toggle-all')
-  toggle.dataset.mode = running ? 'pause' : 'resume'
-  $('toggle-all-label').textContent = running ? 'Приостановить все' : 'Запустить все'
-  $('toggle-all-icon').replaceChildren(icon(running ? 'pause' : 'play').firstChild)
-  toggle.title = $('toggle-all-label').textContent
+  const mode = running ? 'pause' : 'resume'
+  if (toggle.dataset.mode !== mode) {
+    toggle.dataset.mode = mode
+    $('toggle-all-icon').replaceChildren(icon(mode === 'pause' ? 'pause' : 'play').firstChild)
+  }
+  const label = running ? 'Приостановить все' : 'Запустить все'
+  text('toggle-all-label', label)
+  if (toggle.title !== label) toggle.title = label
 }
 
 function apply (next) {

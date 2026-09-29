@@ -1,0 +1,529 @@
+{
+  "environment": {
+    "cpu": "AMD Ryzen 7 5700X",
+    "physicalCores": 8,
+    "logicalProcessors": 16,
+    "os": "Windows x64",
+    "webtorrent": "3.0.21",
+    "baseline": "Tern 1.0.2"
+  },
+  "cases": [
+    {
+      "candidate": "setImmediate-profiled",
+      "runtime": "v24.19.0",
+      "platform": "win32/x64",
+      "limits": {
+        "payloadMiB": 128,
+        "rateLimitMiBps": 60,
+        "timeoutPerChildSeconds": 45,
+        "discovery": "disabled",
+        "priority": "below normal",
+        "network": "127.0.0.1 only"
+      },
+      "active": [
+        {
+          "mode": "baseline",
+          "run": 1,
+          "bytes": 134217728,
+          "pieces": 32,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 2137.697,
+          "throughputMiBps": 59.878,
+          "cpuSeconds": 1.844,
+          "cpuUserSeconds": 1.36,
+          "cpuSystemSeconds": 0.484,
+          "cpuPctOfOneCore": 86.261,
+          "lagMs": {
+            "p50": 2.505,
+            "p95": 6.263,
+            "p99": 12.19,
+            "max": 374.604
+          },
+          "peakRssMiB": 164.789,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 1,
+          "bytes": 134217728,
+          "pieces": 32,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 2074.175,
+          "throughputMiBps": 61.711,
+          "cpuSeconds": 1.172,
+          "cpuUserSeconds": 0.672,
+          "cpuSystemSeconds": 0.5,
+          "cpuPctOfOneCore": 56.504,
+          "lagMs": {
+            "p50": 2.284,
+            "p95": 4.18,
+            "p99": 5.816,
+            "max": 14.664
+          },
+          "peakRssMiB": 130.289,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 2,
+          "bytes": 134217728,
+          "pieces": 32,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 2075.761,
+          "throughputMiBps": 61.664,
+          "cpuSeconds": 1.312,
+          "cpuUserSeconds": 0.812,
+          "cpuSystemSeconds": 0.5,
+          "cpuPctOfOneCore": 63.206,
+          "lagMs": {
+            "p50": 2.38,
+            "p95": 4.362,
+            "p99": 5.779,
+            "max": 119.013
+          },
+          "peakRssMiB": 123.258,
+          "sha256Correct": true
+        },
+        {
+          "mode": "baseline",
+          "run": 2,
+          "bytes": 134217728,
+          "pieces": 32,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 2184.947,
+          "throughputMiBps": 58.583,
+          "cpuSeconds": 1.593,
+          "cpuUserSeconds": 1.125,
+          "cpuSystemSeconds": 0.468,
+          "cpuPctOfOneCore": 72.908,
+          "lagMs": {
+            "p50": 2.464,
+            "p95": 6.353,
+            "p99": 12.034,
+            "max": 627.048
+          },
+          "peakRssMiB": 142.609,
+          "sha256Correct": true
+        }
+      ],
+      "synthetic": [
+        {
+          "mode": "baseline",
+          "scenario": "synthetic-late-download",
+          "pieceCount": 38400,
+          "nominalGiB": 150,
+          "prefixPieces": 37376,
+          "verifiedEvents": 1024,
+          "interestUpdates": 6144,
+          "progressRequests": 1024,
+          "completionMs": 368.769,
+          "completionBitfieldReads": 38798847,
+          "interestMs": 2324.016,
+          "progressMs": 182.527,
+          "progressBitfieldReads": 39321600,
+          "fileDownloadedReads": 1025,
+          "updateRequests": 4096,
+          "schedulerPasses": 4096,
+          "cpuSeconds": 2.938,
+          "correctness": {
+            "fileDoneEvents": 1,
+            "torrentDoneEvents": 1,
+            "selectedBytesCorrect": true
+          }
+        },
+        {
+          "mode": "optimized",
+          "scenario": "synthetic-late-download",
+          "pieceCount": 38400,
+          "nominalGiB": 150,
+          "prefixPieces": 37376,
+          "verifiedEvents": 1024,
+          "interestUpdates": 6144,
+          "progressRequests": 1024,
+          "completionMs": 1.478,
+          "completionBitfieldReads": 40447,
+          "interestMs": 0.756,
+          "progressMs": 0.707,
+          "progressBitfieldReads": 0,
+          "fileDownloadedReads": 0,
+          "updateRequests": 4096,
+          "schedulerPasses": 1,
+          "cpuSeconds": 0.078,
+          "correctness": {
+            "fileDoneEvents": 1,
+            "torrentDoneEvents": 1,
+            "selectedBytesCorrect": true
+          }
+        }
+      ]
+    },
+    {
+      "candidate": "setImmediate-unprofiled",
+      "runtime": "v24.19.0",
+      "platform": "win32/x64",
+      "limits": {
+        "payloadMiB": 256,
+        "rateLimitMiBps": 60,
+        "timeoutPerChildSeconds": 45,
+        "discovery": "disabled",
+        "priority": "below normal",
+        "network": "127.0.0.1 only"
+      },
+      "active": [
+        {
+          "mode": "baseline",
+          "run": 1,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4276.414,
+          "throughputMiBps": 59.863,
+          "cpuSeconds": 1.985,
+          "cpuUserSeconds": 1.594,
+          "cpuSystemSeconds": 0.391,
+          "cpuPctOfOneCore": 46.417,
+          "lagMs": {
+            "p50": 3.731,
+            "p95": 17.089,
+            "p99": 20.84,
+            "max": 502.792
+          },
+          "peakRssMiB": 151.57,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 1,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4235.119,
+          "throughputMiBps": 60.447,
+          "cpuSeconds": 2.547,
+          "cpuUserSeconds": 1.985,
+          "cpuSystemSeconds": 0.562,
+          "cpuPctOfOneCore": 60.14,
+          "lagMs": {
+            "p50": 4.874,
+            "p95": 16.024,
+            "p99": 20.464,
+            "max": 28.639
+          },
+          "peakRssMiB": 149.695,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 2,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4237.471,
+          "throughputMiBps": 60.413,
+          "cpuSeconds": 2,
+          "cpuUserSeconds": 1.297,
+          "cpuSystemSeconds": 0.703,
+          "cpuPctOfOneCore": 47.198,
+          "lagMs": {
+            "p50": 5.014,
+            "p95": 15.794,
+            "p99": 19.35,
+            "max": 25.641
+          },
+          "peakRssMiB": 165.988,
+          "sha256Correct": true
+        },
+        {
+          "mode": "baseline",
+          "run": 2,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4275.638,
+          "throughputMiBps": 59.874,
+          "cpuSeconds": 2.343,
+          "cpuUserSeconds": 1.781,
+          "cpuSystemSeconds": 0.562,
+          "cpuPctOfOneCore": 54.799,
+          "lagMs": {
+            "p50": 4.936,
+            "p95": 19.481,
+            "p99": 27.886,
+            "max": 313.262
+          },
+          "peakRssMiB": 149.273,
+          "sha256Correct": true
+        }
+      ],
+      "synthetic": [
+        {
+          "mode": "baseline",
+          "scenario": "synthetic-late-download",
+          "pieceCount": 38400,
+          "nominalGiB": 150,
+          "prefixPieces": 37376,
+          "verifiedEvents": 1024,
+          "interestUpdates": 6144,
+          "progressRequests": 1024,
+          "completionMs": 324.198,
+          "completionBitfieldReads": 38798847,
+          "interestMs": 2050.427,
+          "progressMs": 163.848,
+          "progressBitfieldReads": 39321600,
+          "fileDownloadedReads": 1025,
+          "updateRequests": 4096,
+          "schedulerPasses": 4096,
+          "cpuSeconds": 2.609,
+          "correctness": {
+            "fileDoneEvents": 1,
+            "torrentDoneEvents": 1,
+            "selectedBytesCorrect": true
+          }
+        },
+        {
+          "mode": "optimized",
+          "scenario": "synthetic-late-download",
+          "pieceCount": 38400,
+          "nominalGiB": 150,
+          "prefixPieces": 37376,
+          "verifiedEvents": 1024,
+          "interestUpdates": 6144,
+          "progressRequests": 1024,
+          "completionMs": 1.245,
+          "completionBitfieldReads": 40447,
+          "interestMs": 0.585,
+          "progressMs": 0.655,
+          "progressBitfieldReads": 0,
+          "fileDownloadedReads": 0,
+          "updateRequests": 4096,
+          "schedulerPasses": 1,
+          "cpuSeconds": 0.047,
+          "correctness": {
+            "fileDoneEvents": 1,
+            "torrentDoneEvents": 1,
+            "selectedBytesCorrect": true
+          }
+        }
+      ]
+    },
+    {
+      "candidate": "5ms-electron-unprofiled",
+      "runtime": "v24.21.0",
+      "platform": "win32/x64",
+      "limits": {
+        "payloadMiB": 256,
+        "rateLimitMiBps": 60,
+        "timeoutPerChildSeconds": 45,
+        "discovery": "disabled",
+        "priority": "below normal",
+        "network": "127.0.0.1 only"
+      },
+      "active": [
+        {
+          "mode": "baseline",
+          "run": 1,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4248.764,
+          "throughputMiBps": 60.253,
+          "cpuSeconds": 1.875,
+          "cpuUserSeconds": 1.141,
+          "cpuSystemSeconds": 0.734,
+          "cpuPctOfOneCore": 44.13,
+          "lagMs": {
+            "p50": 4.956,
+            "p95": 17.482,
+            "p99": 24.461,
+            "max": 515.637
+          },
+          "peakRssMiB": 152.867,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 1,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4236.279,
+          "throughputMiBps": 60.43,
+          "cpuSeconds": 1.655,
+          "cpuUserSeconds": 1.062,
+          "cpuSystemSeconds": 0.593,
+          "cpuPctOfOneCore": 39.067,
+          "lagMs": {
+            "p50": 5.89,
+            "p95": 17.154,
+            "p99": 22.315,
+            "max": 28.017
+          },
+          "peakRssMiB": 159.801,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 2,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4240.077,
+          "throughputMiBps": 60.376,
+          "cpuSeconds": 1.61,
+          "cpuUserSeconds": 0.922,
+          "cpuSystemSeconds": 0.688,
+          "cpuPctOfOneCore": 37.971,
+          "lagMs": {
+            "p50": 5.591,
+            "p95": 17.154,
+            "p99": 24.134,
+            "max": 31.277
+          },
+          "peakRssMiB": 163.492,
+          "sha256Correct": true
+        },
+        {
+          "mode": "baseline",
+          "run": 2,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4350.509,
+          "throughputMiBps": 58.844,
+          "cpuSeconds": 1.625,
+          "cpuUserSeconds": 1.281,
+          "cpuSystemSeconds": 0.344,
+          "cpuPctOfOneCore": 37.352,
+          "lagMs": {
+            "p50": 5.964,
+            "p95": 16.237,
+            "p99": 21.463,
+            "max": 586.154
+          },
+          "peakRssMiB": 172.082,
+          "sha256Correct": true
+        },
+        {
+          "mode": "baseline",
+          "run": 3,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4295.985,
+          "throughputMiBps": 59.591,
+          "cpuSeconds": 2.297,
+          "cpuUserSeconds": 1.672,
+          "cpuSystemSeconds": 0.625,
+          "cpuPctOfOneCore": 53.469,
+          "lagMs": {
+            "p50": 5.997,
+            "p95": 16.925,
+            "p99": 21.987,
+            "max": 541.065
+          },
+          "peakRssMiB": 172.215,
+          "sha256Correct": true
+        },
+        {
+          "mode": "optimized",
+          "run": 3,
+          "bytes": 268435456,
+          "pieces": 64,
+          "pieceKiB": 4096,
+          "peers": 6,
+          "rateLimitMiBps": 60,
+          "elapsedMs": 4246.309,
+          "throughputMiBps": 60.288,
+          "cpuSeconds": 1.266,
+          "cpuUserSeconds": 0.735,
+          "cpuSystemSeconds": 0.531,
+          "cpuPctOfOneCore": 29.814,
+          "lagMs": {
+            "p50": 5.829,
+            "p95": 18.17,
+            "p99": 22.97,
+            "max": 29.999
+          },
+          "peakRssMiB": 167.406,
+          "sha256Correct": true
+        }
+      ],
+      "synthetic": [
+        {
+          "mode": "baseline",
+          "scenario": "synthetic-late-download",
+          "pieceCount": 38400,
+          "nominalGiB": 150,
+          "prefixPieces": 37376,
+          "verifiedEvents": 1024,
+          "interestUpdates": 6144,
+          "progressRequests": 1024,
+          "completionMs": 209.624,
+          "completionBitfieldReads": 38798847,
+          "interestMs": 555.816,
+          "progressMs": 178.944,
+          "progressBitfieldReads": 39321600,
+          "fileDownloadedReads": 1025,
+          "updateRequests": 4096,
+          "schedulerPasses": 4096,
+          "cpuSeconds": 0.952,
+          "correctness": {
+            "fileDoneEvents": 1,
+            "torrentDoneEvents": 1,
+            "selectedBytesCorrect": true
+          }
+        },
+        {
+          "mode": "optimized",
+          "scenario": "synthetic-late-download",
+          "pieceCount": 38400,
+          "nominalGiB": 150,
+          "prefixPieces": 37376,
+          "verifiedEvents": 1024,
+          "interestUpdates": 6144,
+          "progressRequests": 1024,
+          "completionMs": 1.036,
+          "completionBitfieldReads": 40447,
+          "interestMs": 0.541,
+          "progressMs": 0.645,
+          "progressBitfieldReads": 0,
+          "fileDownloadedReads": 0,
+          "updateRequests": 4096,
+          "schedulerPasses": 1,
+          "cpuSeconds": 0.031,
+          "correctness": {
+            "fileDoneEvents": 1,
+            "torrentDoneEvents": 1,
+            "selectedBytesCorrect": true
+          }
+        }
+      ]
+    }
+  ]
+}
