@@ -3,7 +3,8 @@ import { $, run } from './dom.js'
 const STATUS_TEXT = {
   disabled: 'Обновления работают только в установленной версии.',
   idle: 'Установлена последняя версия.',
-  checking: 'Проверяю…'
+  checking: 'Проверяю…',
+  installing: 'Устанавливаю обновление…'
 }
 
 /** Show the update banner, the version line and the "check now" control. */
@@ -17,7 +18,7 @@ export async function initUpdates () {
   function render (u) {
     const line = versionLine(u)
     status.textContent = line
-    const busy = u.status === 'checking' || u.status === 'downloading'
+    const busy = u.status === 'checking' || u.status === 'downloading' || u.status === 'installing'
     $('update-check').disabled = busy || u.status === 'ready' || u.status === 'disabled'
 
     const showBanner = (u.status === 'downloading' || u.status === 'ready') && dismissed !== `${u.status}:${u.version}`

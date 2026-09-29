@@ -7,6 +7,8 @@ const os = require('node:os')
 const path = require('node:path')
 const assert = require('node:assert/strict')
 const { app, BrowserWindow, nativeTheme, session } = require('electron')
+// Match the installed app's software-rendering path, not only Chromium's default.
+app.disableHardwareAcceleration()
 
 const ROOT = path.join(__dirname, '..')
 const smokeData = fs.mkdtempSync(path.join(os.tmpdir(), 'tern-renderer-smoke-'))
@@ -186,7 +188,21 @@ async function run () {
     return { width, scrollWidth: document.documentElement.scrollWidth }
   `)
   assert.equal(geometry.width, geometry.scrollWidth)
-  console.log(JSON.stringify({ ok: true, burst, checks: ['large/small files cadence', 'state and tab refresh', 'A-B-A async response race', 'file selection stale-response and ordered-click races', 'refused last-file deselection', 'stable trackers/facts', 'theme and resize repaint', 'responsive layout'], geometry }, null, 2))
+  await evaluate(`
+    const { A } = ternSmoke.ids
+    ternSmoke.push({ id: A, state: 'checking', verification: { active: true, phase: 'full', checked: 25, total: 100, bytes: 25 * 1024 ** 2, totalBytes: 100 * 1024 ** 2 } })
+    document.querySelectorAll('#list .row')[0].click()
+    await until(() => document.querySelector('#detail-pct').textContent === '25%')
+    expect(document.querySelector('#detail-stats').textContent.includes('проверено'), 'Checking progress was labelled as downloaded data')
+    expect(!document.querySelector('#detail-stats').textContent.includes('скачано'), 'Checked invalid pieces looked downloaded')
+    ternSmoke.push({ id: A, state: 'checking', verification: { active: true, phase: 'full', checked: 80, total: 100, bytes: 80 * 1024 ** 2, totalBytes: 100 * 1024 ** 2 } })
+    await until(() => document.querySelector('#detail-pct').textContent === '80%')
+    expect(document.querySelector('#list').textContent.includes('Проверено'), 'The list did not show checked byte counts')
+    ternSmoke.push({ id: A, state: 'downloading', verification: null, progress: 0.2 })
+    await until(() => document.querySelector('#detail-pct').textContent === '20%')
+    expect(document.querySelector('#detail-stats').textContent.includes('скачано'), 'Download progress did not return after checking')
+  `)
+  console.log(JSON.stringify({ ok: true, burst, checks: ['large/small files cadence', 'state and tab refresh', 'A-B-A async response race', 'file selection stale-response and ordered-click races', 'refused last-file deselection', 'stable trackers/facts', 'theme and resize repaint', 'responsive layout', 'separate changing verification progress'], geometry }, null, 2))
 }
 
 app.whenReady().then(run).then(() => { win.destroy(); app.quit() }).catch((err) => {

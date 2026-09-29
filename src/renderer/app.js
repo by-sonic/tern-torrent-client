@@ -5,6 +5,7 @@ import { STATE_LABEL, ERRORS } from './strings.js'
 import { initAddDialog, createPicker, initSettings, registerHandler } from './dialogs.js'
 import { createDetail } from './detail.js'
 import { initUpdates } from './update.js'
+import { visibleProgress, visiblePieces } from './verification-progress.js'
 
 const HINT_KEY = 'tern.handlerHint'
 const SPARK_SAMPLES = 60
@@ -27,7 +28,7 @@ const STATE_RANK = ['downloading', 'connecting', 'checking', 'metadata', 'choosi
 const SORTERS = {
   name: (a, b) => a.name.localeCompare(b.name, 'ru', { numeric: true, sensitivity: 'base' }),
   status: (a, b) => STATE_RANK.indexOf(a.state) - STATE_RANK.indexOf(b.state),
-  progress: (a, b) => a.progress - b.progress,
+  progress: (a, b) => visibleProgress(a) - visibleProgress(b),
   speed: (a, b) => (a.down + a.up) - (b.down + b.up),
   size: (a, b) => a.size - b.size
 }
@@ -118,7 +119,7 @@ function markSelection () {
 function paintStrip (view) {
   const t = view.torrent
   if (!t) return
-  drawPieceMap(view.strip, t.pieces, LIVE_STATES.has(t.state) ? 'live' : 'quiet', { tick: 3, gap: 1.5 })
+  drawPieceMap(view.strip, visiblePieces(t), LIVE_STATES.has(t.state) ? 'live' : 'quiet', { tick: 3, gap: 1.5 })
 }
 
 function setText (node, text, view, key) {
@@ -132,7 +133,9 @@ function subText (t) {
   switch (t.state) {
     case 'downloading': return t.eta !== null ? `${peers} · осталось ${fmtEta(t.eta)}` : peers
     case 'connecting': return 'Ищу пиров…'
-    case 'checking': return 'Проверяю файлы на диске…'
+    case 'checking': return t.verification
+      ? `${t.verification.phase === 'fallback' ? 'Повторно проверено' : 'Проверено'} ${fmtBytes(t.verification.bytes)} из ${fmtBytes(t.verification.totalBytes)}`
+      : 'Проверяю файлы на диске…'
     case 'seeding': return `${peers} · отдано ${fmtBytes(t.uploaded)}`
     case 'queued': return 'Ждёт своей очереди'
     case 'paused': return `${fmtBytes(t.size * t.progress)} из ${fmtBytes(t.size)}`
@@ -166,7 +169,7 @@ function updateRow (view, t) {
   const hasProgress = isSelectable(t)
   const visibility = hasProgress ? 'visible' : 'hidden'
   if (view.prog.style.visibility !== visibility) view.prog.style.visibility = visibility
-  setText(view.pct, `${Math.floor(t.progress * 100)}%`, view, 'pct')
+  setText(view.pct, `${Math.floor(visibleProgress(t) * 100)}%`, view, 'pct')
   const rate = t.state === 'downloading' ? `↓ ${fmtRate(t.down)}` : t.state === 'seeding' && t.up > 0 ? `↑ ${fmtRate(t.up)}` : '—'
   setText(view.speed, rate, view, 'speed')
   if (view.last.dim !== (rate === '—')) {
@@ -175,7 +178,7 @@ function updateRow (view, t) {
   }
   setText(view.size, fmtBytes(t.size), view, 'size')
 
-  const key = `${t.pieces}|${t.state}|${document.documentElement.dataset.scheme || ''}`
+  const key = `${visiblePieces(t)}|${t.state}|${document.documentElement.dataset.scheme || ''}`
   if (view.last.map !== key) {
     view.last.map = key
     view.needsPaint = true

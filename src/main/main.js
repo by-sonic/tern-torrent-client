@@ -17,6 +17,8 @@ const { EngineService } = require('./engine-service')
 const { classifyInput, extractLaunchInputs } = require('./input')
 const { registerAsHandler } = require('./association')
 const { Updater } = require('./updater')
+const { createNsisInstaller } = require('./nsis-installer')
+const { StartupUpdate, createStartupWindow, cleanStartupInputs, saveStartupInputs, readStartupInputs, clearStartupInputs, MAX_STARTUP_INPUTS } = require('./startup-update')
 
 const ROOT = path.join(__dirname, '..', '..')
 const ICON = path.join(ROOT, 'assets', 'icon.png')
@@ -40,6 +42,10 @@ let tray = null
 let engine = null
 /** @type {Updater | null} */
 let updater = null
+let startupWindow = null
+let startupController = null
+let starting = true
+let startupHidden = process.argv.includes('--hidden')
 let quitting = false
 let lastState = null
 let ready = false
@@ -64,7 +70,17 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_event, argv, workingDirectory) => {
     const inputs = extractLaunchInputs(argv, workingDirectory)
-    if (!ready) { pendingInputs.push(...inputs); return }
+    if (!ready) {
+      pendingInputs.push(...inputs.slice(0, MAX_STARTUP_INPUTS - pendingInputs.length))
+      if (!argv.includes('--hidden')) startupHidden = false
+      if (startupWindow && !startupWindow.isDestroyed()) { startupWindow.show(); startupWindow.focus() }
+      // Requests arriving in the last moment before the installer quits us must
+      // reach the new version as well as the ones captured before installation.
+      if (startupController && startupController.state.status === 'installing') {
+        try { saveStartupInputs(app.getPath('userData'), pendingInputs, startupHidden) } catch (err) { console.error('[startup-inputs]', err.message) }
+      }
+      return
+    }
     showWindow()
     void openInputs(inputs)
   })
@@ -79,6 +95,30 @@ async function start () {
   lockDownSession()
 
   const userData = app.getPath('userData')
+  const resumed = readStartupInputs(userData)
+  const queued = cleanStartupInputs([...extractLaunchInputs(process.argv), ...resumed.inputs, ...pendingInputs])
+  pendingInputs.splice(0, pendingInputs.length, ...queued)
+  if (resumed.hidden && !pendingInputs.length) startupHidden = true
+  createUpdater()
+  let bootstrap = null
+  if (app.isPackaged) {
+    // No torrent process, disk verification, tray or main UI exists behind this
+    // screen. A successful update replaces this process before the engine starts.
+    startupController = new StartupUpdate(updater, {
+      version: app.getVersion(),
+      beforeInstall: async () => saveStartupInputs(userData, pendingInputs, startupHidden)
+    })
+    updater.beginStartup()
+    bootstrap = createStartupWindow({ BrowserWindow, ipcMain, controller: startupController, root: ROOT,
+      icon: process.platform === 'win32' ? ICON_ICO : ICON, backgroundColor: THEME[themeKey()].bg, onClose: quit })
+    startupWindow = bootstrap.window
+    if (process.platform === 'win32') startupWindow.setAppDetails({ appId: APP_ID, appIconPath: ICON_ICO, appIconIndex: 0 })
+    await bootstrap.loaded
+    const outcome = await startupController.run()
+    if (outcome !== 'launch' || quitting) { quit(); return }
+    updater.finishStartup()
+  }
+  if (quitting) return
   engine = new EngineService({
     userData,
     defaultDir: (!app.isPackaged && process.env.TERN_DOWNLOADS) || app.getPath('downloads'),
@@ -101,23 +141,33 @@ async function start () {
     note.show()
   })
   await engine.init()
+  if (quitting) return
   applyLoginItem(engine.settings.launchAtLogin)
 
-  createUpdater()
+  updater.refresh()
+  updater.start()
   registerIpc()
   createTray()
   // Started in the tray (login item): no window, so no renderer or GPU process until it is opened.
-  if (!process.argv.includes('--hidden')) createWindow(true)
+  if (!startupHidden) createWindow(true)
+  if (bootstrap) {
+    bootstrap.destroy()
+    startupWindow = null
+    startupController = null
+  }
+  starting = false
   ready = true
-  await openInputs([...extractLaunchInputs(process.argv), ...pendingInputs.splice(0)])
+  await openInputs(pendingInputs.splice(0))
+  clearStartupInputs(userData)
 }
 
 function createUpdater () {
   // Updates exist only in the installed app: the feed (our GitHub Releases) is baked in at build time.
   const autoUpdater = app.isPackaged ? require('electron-updater').autoUpdater : null
-  updater = new Updater(autoUpdater, { isAutomatic: () => engine.settings.autoUpdate })
+  updater = new Updater(autoUpdater, { isAutomatic: () => Boolean(engine && engine.settings.autoUpdate),
+    startupInstaller: autoUpdater ? createNsisInstaller(autoUpdater) : null })
   updater.on('state', (state) => send('update', state))
-  updater.start()
+  updater.on('installer-started', quit)
 }
 
 /** The UI is local files only: no remote content, no permission prompts, no popups. */
@@ -258,6 +308,9 @@ app.on('before-quit', (event) => {
 })
 
 app.on('window-all-closed', () => {
+  // Replacing the startup screen with the main window (or login tray) is an
+  // intentional gap with no renderer. Closing the startup screen calls quit.
+  if (starting) return
   // With "close to tray" on we keep running in the tray; with it off, closing the window quits.
   if (!engine || !engine.settings.closeToTray) quit()
 })

@@ -213,6 +213,10 @@
         <label class="setting-name" for="set-up">Лимит отдачи</label>
         <span class="num"><input id="set-up" type="number" min="0" step="100" inputmode="numeric"><span class="muted">КБ/с</span></span>
       </div>
+      <div class="setting">
+        <label class="setting-name" for="set-verify">Лимит проверки файлов</label>
+        <span class="num"><input id="set-verify" type="number" min="0" max="4096" step="64" inputmode="numeric"><span class="muted">МиБ/с</span></span>
+      </div>
       <p class="setting-note">0 — без ограничений.</p>
       <div class="setting">
         <label class="setting-name" for="set-active">Одновременно скачивается</label>
@@ -221,7 +225,7 @@
       <label class="setting switch"><span class="setting-name">Раздавать после загрузки</span><input type="checkbox" id="set-seed" role="switch"></label>
       <label class="setting switch"><span class="setting-name">Сворачивать в трей при закрытии</span><input type="checkbox" id="set-tray" role="switch"></label>
       <label class="setting switch"><span class="setting-name">Запускать вместе с Windows</span><input type="checkbox" id="set-login" role="switch"></label>
-      <label class="setting switch"><span class="setting-name">Проверять обновления автоматически</span><input type="checkbox" id="set-update" role="switch"></label>
+      <label class="setting switch"><span class="setting-name">Проверять обновления в фоне</span><input type="checkbox" id="set-update" role="switch"></label>
       <div class="setting">
         <div><div class="setting-name">Обновления</div><div class="muted small" id="update-status"></div></div>
         <button class="link" id="update-check">Проверить</button>

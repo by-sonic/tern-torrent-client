@@ -20,9 +20,11 @@ npm start
 
 Node.js 22 or newer. The app is Electron (main process in `src/main`, sandboxed preload in `src/preload`, plain-JS interface in `src/renderer`) on top of the WebTorrent engine. `EngineService` runs the torrent engine in an Electron utility process so peer scheduling, hash checks and file I/O cannot block the window's event loop.
 
-WebTorrent is pinned to 3.0.21 because `torrent-tuning.js` wraps private scheduler/completion methods. Before upgrading it, review the upstream methods and rerun the integration tests, Electron smokes and `npm run bench:active`. See [performance measurements](docs/performance.md) for the bounded loopback benchmark and its limitations.
+WebTorrent is pinned to 3.0.21 because `torrent-tuning.js` and `verification.js` wrap private scheduler/completion and verification methods. The sparse store also uses fs-chunk-store's chunk map for single-file reads. Before upgrading these dependencies, review the upstream methods and rerun the integration tests, Electron smokes, `npm run bench:active` and `npm run bench:verify`. See [performance measurements](docs/performance.md) for the bounded benchmarks and their limitations.
 
 Running the app while developing: set `TERN_USER_DATA` and `TERN_DOWNLOADS` to throw-away folders so you never touch your real profile or downloads. These hooks only work in an unpackaged build.
+
+The startup installer adapter targets this project's per-user, standalone NSIS build and is tested against electron-updater 6.8.9. It waits for the operating system to confirm the installer process before quitting. Review its downloaded-helper contract and rerun startup smokes before upgrading electron-updater or changing the installer target.
 
 ## Pull requests
 

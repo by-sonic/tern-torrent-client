@@ -96,6 +96,10 @@ jobs:
           $env:TERN_SMOKE_APP_ROOT = (Resolve-Path dist/win-unpacked/resources/app.asar).Path
           npx electron scripts/engine-smoke.js
           if ($LASTEXITCODE -ne 0) { throw 'packaged engine smoke failed' }
+          node scripts/verification-smoke.js
+          if ($LASTEXITCODE -ne 0) { throw 'packaged verification smoke failed' }
+          npx electron scripts/startup-smoke.js
+          if ($LASTEXITCODE -ne 0) { throw 'packaged startup update smoke failed' }
 
       - name: Check the assets, write the notes, then publish
         shell: pwsh

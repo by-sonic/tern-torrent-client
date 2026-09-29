@@ -1,0 +1,1930 @@
+{
+  "accepted": "Default balanced: synchronous SHA-1, yielded scheduler, single-file buffer reuse, shared 256 MiB/s hash budget; zero configured rate retains the measured uncapped fast-store option",
+  "rejected": "WebCrypto SHA-1 increases total process CPU and elapsed time on this Electron runtime",
+  "summary": [
+    {
+      "scenario": "fixture",
+      "cpuSeconds": [
+        0.5623333333333335,
+        0.438
+      ],
+      "cpuChangePct": -22.1102548903379,
+      "elapsedMs": [
+        366.003,
+        254.66733333333332
+      ],
+      "elapsedChangePct": -30.41933171768173,
+      "throughputMiBps": [
+        1399.0816666666667,
+        2010.4926666666668
+      ],
+      "loopP99Ms": [
+        7.468666666666667,
+        5.727666666666667
+      ],
+      "loopMaxMs": [
+        15.655,
+        15.679
+      ]
+    },
+    {
+      "scenario": "paused-live-subset",
+      "cpuSeconds": [
+        0.7240000000000001,
+        0.4793333333333334
+      ],
+      "cpuChangePct": -33.79373848987108,
+      "elapsedMs": [
+        347.228,
+        244.61833333333334
+      ],
+      "elapsedChangePct": -29.55109226982463,
+      "throughputMiBps": [
+        1474.869,
+        2093.6929999999998
+      ],
+      "loopP99Ms": [
+        5.443666666666666,
+        4.396333333333334
+      ],
+      "loopMaxMs": [
+        13.115,
+        15.254
+      ]
+    }
+  ],
+  "matrix": {
+    "generatedAt": "2026-09-29T22:33:33.223Z",
+    "runtime": "v24.21.0",
+    "platform": "win32/x64",
+    "baseline": "Synchronous SHA-1, two reads in flight, yielded scheduler, concat even for one-file pieces",
+    "variants": {
+      "fast-store": "single-file buffer reuse only",
+      "async-hash": "WebCrypto SHA-1 only, original concatenation",
+      "optimized": "buffer reuse and WebCrypto SHA-1",
+      "upstream": "unmodified WebTorrent 3.0.21 verifier, available as a separate optional control"
+    },
+    "limits": {
+      "maxSubsetMiB": 512,
+      "maxTotalSourceMiB": 512,
+      "repeat": 3,
+      "timePerChildSeconds": 45,
+      "priority": "below normal",
+      "network": "none"
+    },
+    "fixture": {
+      "sharedFileBoundaries": true,
+      "shortLastPiece": true
+    },
+    "live": {
+      "paused": true,
+      "metadataAndFileStampsUnchanged": true,
+      "handles": "fs.open r only"
+    },
+    "results": [
+      {
+        "scenario": "fixture",
+        "mode": "baseline",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 376.176,
+        "throughputMiBps": 1361.065,
+        "cpuSeconds": 0.608,
+        "cpuUserSeconds": 0.343,
+        "cpuSystemSeconds": 0.265,
+        "loopP99Ms": 5.439,
+        "loopMaxMs": 6.914,
+        "maxPulseDelayMs": 2.587,
+        "peakRssMiB": 165.754,
+        "gc": {
+          "events": 22,
+          "totalMs": 4.799,
+          "maxMs": 0.957
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "fast-store",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 253.104,
+        "throughputMiBps": 2022.885,
+        "cpuSeconds": 0.438,
+        "cpuUserSeconds": 0.344,
+        "cpuSystemSeconds": 0.094,
+        "loopP99Ms": 6.504,
+        "loopMaxMs": 6.914,
+        "maxPulseDelayMs": 1.953,
+        "peakRssMiB": 178.051,
+        "gc": {
+          "events": 13,
+          "totalMs": 4.929,
+          "maxMs": 0.871
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "async-hash",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 583.252,
+        "throughputMiBps": 877.837,
+        "cpuSeconds": 1.157,
+        "cpuUserSeconds": 0.875,
+        "cpuSystemSeconds": 0.282,
+        "loopP99Ms": 9.667,
+        "loopMaxMs": 12.444,
+        "maxPulseDelayMs": 6.183,
+        "peakRssMiB": 156.867,
+        "gc": {
+          "events": 42,
+          "totalMs": 14.631,
+          "maxMs": 0.81
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "optimized",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 421.159,
+        "throughputMiBps": 1215.694,
+        "cpuSeconds": 0.702,
+        "cpuUserSeconds": 0.484,
+        "cpuSystemSeconds": 0.218,
+        "loopP99Ms": 5.792,
+        "loopMaxMs": 10.543,
+        "maxPulseDelayMs": 5.716,
+        "peakRssMiB": 234.398,
+        "gc": {
+          "events": 10,
+          "totalMs": 4.202,
+          "maxMs": 0.861
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "optimized",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 420.591,
+        "throughputMiBps": 1217.334,
+        "cpuSeconds": 0.859,
+        "cpuUserSeconds": 0.671,
+        "cpuSystemSeconds": 0.188,
+        "loopP99Ms": 6.087,
+        "loopMaxMs": 10.158,
+        "maxPulseDelayMs": 2.905,
+        "peakRssMiB": 194.445,
+        "gc": {
+          "events": 15,
+          "totalMs": 6.137,
+          "maxMs": 1.102
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "async-hash",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 539.391,
+        "throughputMiBps": 949.219,
+        "cpuSeconds": 1.094,
+        "cpuUserSeconds": 0.797,
+        "cpuSystemSeconds": 0.297,
+        "loopP99Ms": 9.88,
+        "loopMaxMs": 11.706,
+        "maxPulseDelayMs": 9.805,
+        "peakRssMiB": 158.449,
+        "gc": {
+          "events": 42,
+          "totalMs": 14.981,
+          "maxMs": 0.919
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "fast-store",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 259.23,
+        "throughputMiBps": 1975.084,
+        "cpuSeconds": 0.577,
+        "cpuUserSeconds": 0.39,
+        "cpuSystemSeconds": 0.187,
+        "loopP99Ms": 3.457,
+        "loopMaxMs": 5.636,
+        "maxPulseDelayMs": 11.755,
+        "peakRssMiB": 178.207,
+        "gc": {
+          "events": 13,
+          "totalMs": 5.339,
+          "maxMs": 0.837
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "baseline",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 367.603,
+        "throughputMiBps": 1392.809,
+        "cpuSeconds": 0.843,
+        "cpuUserSeconds": 0.625,
+        "cpuSystemSeconds": 0.218,
+        "loopP99Ms": 7.311,
+        "loopMaxMs": 12.616,
+        "maxPulseDelayMs": 4.52,
+        "peakRssMiB": 194.422,
+        "gc": {
+          "events": 31,
+          "totalMs": 13.025,
+          "maxMs": 1.321
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "baseline",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 369.158,
+        "throughputMiBps": 1386.941,
+        "cpuSeconds": 0.64,
+        "cpuUserSeconds": 0.359,
+        "cpuSystemSeconds": 0.281,
+        "loopP99Ms": 6.779,
+        "loopMaxMs": 6.926,
+        "maxPulseDelayMs": 5.92,
+        "peakRssMiB": 186.754,
+        "gc": {
+          "events": 31,
+          "totalMs": 12.918,
+          "maxMs": 1.163
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "fast-store",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 248.531,
+        "throughputMiBps": 2060.108,
+        "cpuSeconds": 0.468,
+        "cpuUserSeconds": 0.281,
+        "cpuSystemSeconds": 0.187,
+        "loopP99Ms": 7.123,
+        "loopMaxMs": 15.008,
+        "maxPulseDelayMs": 2.313,
+        "peakRssMiB": 179.27,
+        "gc": {
+          "events": 13,
+          "totalMs": 4.85,
+          "maxMs": 0.872
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "async-hash",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 497.983,
+        "throughputMiBps": 1028.147,
+        "cpuSeconds": 1.108,
+        "cpuUserSeconds": 0.765,
+        "cpuSystemSeconds": 0.343,
+        "loopP99Ms": 10.011,
+        "loopMaxMs": 15.524,
+        "maxPulseDelayMs": 13.782,
+        "peakRssMiB": 156.973,
+        "gc": {
+          "events": 42,
+          "totalMs": 15.776,
+          "maxMs": 0.949
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "optimized",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 379.297,
+        "throughputMiBps": 1349.866,
+        "cpuSeconds": 0.719,
+        "cpuUserSeconds": 0.469,
+        "cpuSystemSeconds": 0.25,
+        "loopP99Ms": 6.39,
+        "loopMaxMs": 10.895,
+        "maxPulseDelayMs": 4.364,
+        "peakRssMiB": 194.543,
+        "gc": {
+          "events": 15,
+          "totalMs": 6.132,
+          "maxMs": 1.124
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "baseline",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 353.228,
+        "throughputMiBps": 1449.487,
+        "cpuSeconds": 0.593,
+        "cpuUserSeconds": 0.39,
+        "cpuSystemSeconds": 0.203,
+        "loopP99Ms": 6.566,
+        "loopMaxMs": 15,
+        "maxPulseDelayMs": 3.474,
+        "peakRssMiB": 171.25,
+        "gc": {
+          "events": 30,
+          "totalMs": 12.303,
+          "maxMs": 1.147
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "fast-store",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 246.208,
+        "throughputMiBps": 2079.543,
+        "cpuSeconds": 0.515,
+        "cpuUserSeconds": 0.312,
+        "cpuSystemSeconds": 0.203,
+        "loopP99Ms": 3.629,
+        "loopMaxMs": 13.926,
+        "maxPulseDelayMs": 9.47,
+        "peakRssMiB": 264.875,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.442,
+          "maxMs": 0.964
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "async-hash",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 797.569,
+        "throughputMiBps": 641.951,
+        "cpuSeconds": 1.562,
+        "cpuUserSeconds": 1.156,
+        "cpuSystemSeconds": 0.406,
+        "loopP99Ms": 8.675,
+        "loopMaxMs": 14.934,
+        "maxPulseDelayMs": 5.62,
+        "peakRssMiB": 151.141,
+        "gc": {
+          "events": 37,
+          "totalMs": 13.178,
+          "maxMs": 1.044
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "optimized",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 628.203,
+        "throughputMiBps": 815.024,
+        "cpuSeconds": 0.953,
+        "cpuUserSeconds": 0.75,
+        "cpuSystemSeconds": 0.203,
+        "loopP99Ms": 6.169,
+        "loopMaxMs": 9.224,
+        "maxPulseDelayMs": 3.817,
+        "peakRssMiB": 259.512,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.215,
+          "maxMs": 0.816
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "optimized",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 622.124,
+        "throughputMiBps": 822.987,
+        "cpuSeconds": 0.875,
+        "cpuUserSeconds": 0.625,
+        "cpuSystemSeconds": 0.25,
+        "loopP99Ms": 6.873,
+        "loopMaxMs": 8.692,
+        "maxPulseDelayMs": 4.644,
+        "peakRssMiB": 254.063,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.229,
+          "maxMs": 0.896
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "async-hash",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 788.376,
+        "throughputMiBps": 649.436,
+        "cpuSeconds": 1.343,
+        "cpuUserSeconds": 1.125,
+        "cpuSystemSeconds": 0.218,
+        "loopP99Ms": 8.454,
+        "loopMaxMs": 10.404,
+        "maxPulseDelayMs": 7.014,
+        "peakRssMiB": 159.273,
+        "gc": {
+          "events": 37,
+          "totalMs": 14.468,
+          "maxMs": 1.217
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "fast-store",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 239.889,
+        "throughputMiBps": 2134.323,
+        "cpuSeconds": 0.423,
+        "cpuUserSeconds": 0.344,
+        "cpuSystemSeconds": 0.079,
+        "loopP99Ms": 3.109,
+        "loopMaxMs": 11.084,
+        "maxPulseDelayMs": 8.351,
+        "peakRssMiB": 265.75,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.373,
+          "maxMs": 0.918
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "baseline",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 350.433,
+        "throughputMiBps": 1461.049,
+        "cpuSeconds": 0.796,
+        "cpuUserSeconds": 0.484,
+        "cpuSystemSeconds": 0.312,
+        "loopP99Ms": 5.075,
+        "loopMaxMs": 5.284,
+        "maxPulseDelayMs": 4.702,
+        "peakRssMiB": 163.414,
+        "gc": {
+          "events": 31,
+          "totalMs": 11.519,
+          "maxMs": 1.056
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "baseline",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 348.709,
+        "throughputMiBps": 1468.274,
+        "cpuSeconds": 0.578,
+        "cpuUserSeconds": 0.391,
+        "cpuSystemSeconds": 0.187,
+        "loopP99Ms": 6.337,
+        "loopMaxMs": 6.881,
+        "maxPulseDelayMs": 11.271,
+        "peakRssMiB": 163.566,
+        "gc": {
+          "events": 30,
+          "totalMs": 11.744,
+          "maxMs": 1.062
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "fast-store",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 252.388,
+        "throughputMiBps": 2028.625,
+        "cpuSeconds": 0.516,
+        "cpuUserSeconds": 0.313,
+        "cpuSystemSeconds": 0.203,
+        "loopP99Ms": 3.232,
+        "loopMaxMs": 3.701,
+        "maxPulseDelayMs": 1.528,
+        "peakRssMiB": 266.77,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.695,
+          "maxMs": 0.875
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "async-hash",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 725.729,
+        "throughputMiBps": 705.497,
+        "cpuSeconds": 1.249,
+        "cpuUserSeconds": 0.953,
+        "cpuSystemSeconds": 0.296,
+        "loopP99Ms": 8.421,
+        "loopMaxMs": 8.651,
+        "maxPulseDelayMs": 5.468,
+        "peakRssMiB": 158.977,
+        "gc": {
+          "events": 37,
+          "totalMs": 14.485,
+          "maxMs": 1.018
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "optimized",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 539.956,
+        "throughputMiBps": 948.226,
+        "cpuSeconds": 0.906,
+        "cpuUserSeconds": 0.593,
+        "cpuSystemSeconds": 0.313,
+        "loopP99Ms": 7.512,
+        "loopMaxMs": 13.951,
+        "maxPulseDelayMs": 4.576,
+        "peakRssMiB": 237.793,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.562,
+          "maxMs": 0.923
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      }
+    ],
+    "interpretation": "Process CPU includes async crypto threads; excludes UI/GPU. Each variant rereads the same bounded subset. Windows file cache is warm and variants alternate order; these are verification measurements, not a full 151 GiB scan. Fixture uses the actual sparse and upstream store get methods. The live readonly adapter models their buffer-copy difference and never creates a live FsChunkStore."
+  },
+  "upstreamControl": {
+    "generatedAt": "2026-09-29T22:35:07.903Z",
+    "runtime": "v24.21.0",
+    "platform": "win32/x64",
+    "baseline": "Synchronous SHA-1, two reads in flight, yielded scheduler, concat even for one-file pieces",
+    "variants": {
+      "fast-store": "single-file buffer reuse only",
+      "async-hash": "WebCrypto SHA-1 only, original concatenation",
+      "optimized": "buffer reuse and WebCrypto SHA-1",
+      "upstream": "unmodified WebTorrent 3.0.21 verifier, available as a separate optional control"
+    },
+    "limits": {
+      "maxSubsetMiB": 512,
+      "maxTotalSourceMiB": 512,
+      "repeat": 3,
+      "timePerChildSeconds": 45,
+      "priority": "below normal",
+      "network": "none"
+    },
+    "fixture": {
+      "sharedFileBoundaries": true,
+      "shortLastPiece": true
+    },
+    "live": {
+      "paused": true,
+      "metadataAndFileStampsUnchanged": true,
+      "handles": "fs.open r only"
+    },
+    "results": [
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 369.369,
+        "throughputMiBps": 1386.149,
+        "cpuSeconds": 0.515,
+        "cpuUserSeconds": 0.375,
+        "cpuSystemSeconds": 0.14,
+        "loopP99Ms": 7.201,
+        "loopMaxMs": 11.493,
+        "maxPulseDelayMs": 4.846,
+        "peakRssMiB": 172.508,
+        "gc": {
+          "events": 33,
+          "totalMs": 12.62,
+          "maxMs": 1.053
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "fast-store",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 254.153,
+        "throughputMiBps": 2014.536,
+        "cpuSeconds": 0.47,
+        "cpuUserSeconds": 0.329,
+        "cpuSystemSeconds": 0.141,
+        "loopP99Ms": 5.226,
+        "loopMaxMs": 11.665,
+        "maxPulseDelayMs": 5.255,
+        "peakRssMiB": 186.402,
+        "gc": {
+          "events": 13,
+          "totalMs": 5.022,
+          "maxMs": 0.904
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "fast-store",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 253.879,
+        "throughputMiBps": 2016.711,
+        "cpuSeconds": 0.407,
+        "cpuUserSeconds": 0.313,
+        "cpuSystemSeconds": 0.094,
+        "loopP99Ms": 6.128,
+        "loopMaxMs": 15.679,
+        "maxPulseDelayMs": 11.006,
+        "peakRssMiB": 179.875,
+        "gc": {
+          "events": 13,
+          "totalMs": 5.137,
+          "maxMs": 0.883
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 360.071,
+        "throughputMiBps": 1421.941,
+        "cpuSeconds": 0.532,
+        "cpuUserSeconds": 0.375,
+        "cpuSystemSeconds": 0.157,
+        "loopP99Ms": 7.578,
+        "loopMaxMs": 15.655,
+        "maxPulseDelayMs": 5.59,
+        "peakRssMiB": 170.133,
+        "gc": {
+          "events": 33,
+          "totalMs": 12.944,
+          "maxMs": 1.224
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 368.569,
+        "throughputMiBps": 1389.155,
+        "cpuSeconds": 0.64,
+        "cpuUserSeconds": 0.359,
+        "cpuSystemSeconds": 0.281,
+        "loopP99Ms": 7.627,
+        "loopMaxMs": 15.131,
+        "maxPulseDelayMs": 7,
+        "peakRssMiB": 170.145,
+        "gc": {
+          "events": 35,
+          "totalMs": 14.13,
+          "maxMs": 1.037
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "fast-store",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 255.97,
+        "throughputMiBps": 2000.231,
+        "cpuSeconds": 0.437,
+        "cpuUserSeconds": 0.328,
+        "cpuSystemSeconds": 0.109,
+        "loopP99Ms": 5.829,
+        "loopMaxMs": 14.754,
+        "maxPulseDelayMs": 8.337,
+        "peakRssMiB": 178.711,
+        "gc": {
+          "events": 13,
+          "totalMs": 5.129,
+          "maxMs": 0.971
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "upstream",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 351.677,
+        "throughputMiBps": 1455.882,
+        "cpuSeconds": 0.703,
+        "cpuUserSeconds": 0.5,
+        "cpuSystemSeconds": 0.203,
+        "loopP99Ms": 6.689,
+        "loopMaxMs": 13.115,
+        "maxPulseDelayMs": 9.771,
+        "peakRssMiB": 170.59,
+        "gc": {
+          "events": 29,
+          "totalMs": 10.769,
+          "maxMs": 1
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "fast-store",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 240.326,
+        "throughputMiBps": 2130.439,
+        "cpuSeconds": 0.453,
+        "cpuUserSeconds": 0.312,
+        "cpuSystemSeconds": 0.141,
+        "loopP99Ms": 6.84,
+        "loopMaxMs": 15.254,
+        "maxPulseDelayMs": 1.105,
+        "peakRssMiB": 266.906,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.784,
+          "maxMs": 1.177
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "fast-store",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 243.057,
+        "throughputMiBps": 2106.503,
+        "cpuSeconds": 0.516,
+        "cpuUserSeconds": 0.391,
+        "cpuSystemSeconds": 0.125,
+        "loopP99Ms": 3.146,
+        "loopMaxMs": 11.78,
+        "maxPulseDelayMs": 3.634,
+        "peakRssMiB": 269.422,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.32,
+          "maxMs": 0.911
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "upstream",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 339.946,
+        "throughputMiBps": 1506.122,
+        "cpuSeconds": 0.687,
+        "cpuUserSeconds": 0.5,
+        "cpuSystemSeconds": 0.187,
+        "loopP99Ms": 4.366,
+        "loopMaxMs": 5.464,
+        "maxPulseDelayMs": 12.442,
+        "peakRssMiB": 170.613,
+        "gc": {
+          "events": 31,
+          "totalMs": 10.778,
+          "maxMs": 1.038
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "upstream",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 350.061,
+        "throughputMiBps": 1462.603,
+        "cpuSeconds": 0.782,
+        "cpuUserSeconds": 0.516,
+        "cpuSystemSeconds": 0.266,
+        "loopP99Ms": 5.276,
+        "loopMaxMs": 5.591,
+        "maxPulseDelayMs": 3.298,
+        "peakRssMiB": 170.816,
+        "gc": {
+          "events": 29,
+          "totalMs": 10.235,
+          "maxMs": 1.098
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "fast-store",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 250.472,
+        "throughputMiBps": 2044.137,
+        "cpuSeconds": 0.469,
+        "cpuUserSeconds": 0.328,
+        "cpuSystemSeconds": 0.141,
+        "loopP99Ms": 3.203,
+        "loopMaxMs": 12.394,
+        "maxPulseDelayMs": 10.05,
+        "peakRssMiB": 266.211,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.28,
+          "maxMs": 0.819
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      }
+    ],
+    "interpretation": "Process CPU includes async crypto threads; excludes UI/GPU. Each variant rereads the same bounded subset. Windows file cache is warm and variants alternate order; these are verification measurements, not a full 151 GiB scan. Fixture uses the actual sparse and upstream store get methods. The live readonly adapter models their buffer-copy difference and never creates a live FsChunkStore."
+  },
+  "balancedSummary": [
+    {
+      "scenario": "fixture",
+      "comparedModes": [
+        "upstream",
+        "balanced"
+      ],
+      "logicalCpuPercent": [
+        10.911,
+        1.043
+      ],
+      "cpuSeconds": [
+        0.63,
+        0.328
+      ],
+      "elapsedMs": [
+        361.223,
+        1963.271
+      ],
+      "throughputMiBps": [
+        1417.489,
+        260.79
+      ],
+      "loopP99Ms": [
+        6.784,
+        21.283
+      ],
+      "loopMaxMs": [
+        6.997,
+        25.57
+      ]
+    },
+    {
+      "scenario": "paused-live-subset",
+      "comparedModes": [
+        "upstream",
+        "balanced"
+      ],
+      "logicalCpuPercent": [
+        12.633,
+        1.994
+      ],
+      "cpuSeconds": [
+        0.697,
+        0.625
+      ],
+      "elapsedMs": [
+        344.216,
+        1959.56
+      ],
+      "throughputMiBps": [
+        1488.633,
+        261.283
+      ],
+      "loopP99Ms": [
+        5.863,
+        20.404
+      ],
+      "loopMaxMs": [
+        11.572,
+        29.862
+      ]
+    }
+  ],
+  "balanced": {
+    "generatedAt": "2026-09-29T22:47:26.755Z",
+    "runtime": "v24.21.0",
+    "platform": "win32/x64",
+    "logicalCpuCount": 16,
+    "baseline": "Synchronous SHA-1, two reads in flight, yielded scheduler, concat even for one-file pieces",
+    "variants": {
+      "fast-store": "single-file buffer reuse only",
+      "async-hash": "WebCrypto SHA-1 only, original concatenation",
+      "optimized": "buffer reuse and WebCrypto SHA-1",
+      "upstream": "unmodified WebTorrent 3.0.21 verifier, available as a separate optional control",
+      "balanced": "synchronous SHA-1, yielded scheduler, buffer reuse, shared 256 MiB/s rate budget"
+    },
+    "limits": {
+      "maxSubsetMiB": 512,
+      "fixturePieceKiB": 4096,
+      "maxTotalSourceMiB": 512,
+      "repeat": 3,
+      "timePerChildSeconds": 45,
+      "priority": "below normal",
+      "network": "none",
+      "rateWindowMs": 16
+    },
+    "fixture": {
+      "sharedFileBoundaries": true,
+      "shortLastPiece": true
+    },
+    "live": {
+      "paused": true,
+      "metadataAndFileStampsUnchanged": true,
+      "handles": "fs.open r only"
+    },
+    "results": [
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 361.119,
+        "throughputMiBps": 1417.816,
+        "cpuSeconds": 0.593,
+        "cpuUserSeconds": 0.437,
+        "cpuSystemSeconds": 0.156,
+        "logicalCpuPercent": 10.263,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 6.795,
+        "loopMaxMs": 7.139,
+        "maxPulseDelayMs": 5.85,
+        "peakRssMiB": 170.043,
+        "gc": {
+          "events": 34,
+          "totalMs": 12.513,
+          "maxMs": 1.093
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "balanced",
+        "run": 1,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 1968.51,
+        "throughputMiBps": 260.095,
+        "cpuSeconds": 0.297,
+        "cpuUserSeconds": 0.187,
+        "cpuSystemSeconds": 0.11,
+        "logicalCpuPercent": 0.943,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 20.89,
+        "loopMaxMs": 25.788,
+        "maxPulseDelayMs": 17.764,
+        "peakRssMiB": 245.938,
+        "gc": {
+          "events": 10,
+          "totalMs": 3.737,
+          "maxMs": 0.824
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "balanced",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 1960.999,
+        "throughputMiBps": 261.091,
+        "cpuSeconds": 0.343,
+        "cpuUserSeconds": 0.234,
+        "cpuSystemSeconds": 0.109,
+        "logicalCpuPercent": 1.093,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 20.185,
+        "loopMaxMs": 27.771,
+        "maxPulseDelayMs": 26.932,
+        "peakRssMiB": 194.156,
+        "gc": {
+          "events": 17,
+          "totalMs": 6.301,
+          "maxMs": 1.012
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 2,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 357.913,
+        "throughputMiBps": 1430.517,
+        "cpuSeconds": 0.688,
+        "cpuUserSeconds": 0.422,
+        "cpuSystemSeconds": 0.266,
+        "logicalCpuPercent": 12.014,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 6.865,
+        "loopMaxMs": 6.914,
+        "maxPulseDelayMs": 3.635,
+        "peakRssMiB": 172.602,
+        "gc": {
+          "events": 32,
+          "totalMs": 12.019,
+          "maxMs": 1.086
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 364.638,
+        "throughputMiBps": 1404.134,
+        "cpuSeconds": 0.61,
+        "cpuUserSeconds": 0.391,
+        "cpuSystemSeconds": 0.219,
+        "logicalCpuPercent": 10.456,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 6.693,
+        "loopMaxMs": 6.939,
+        "maxPulseDelayMs": 5.744,
+        "peakRssMiB": 178.094,
+        "gc": {
+          "events": 32,
+          "totalMs": 11.496,
+          "maxMs": 1.129
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 536870895,
+          "allocatedBytes": 1073741790
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "balanced",
+        "run": 3,
+        "bytes": 536870895,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 1960.304,
+        "throughputMiBps": 261.184,
+        "cpuSeconds": 0.343,
+        "cpuUserSeconds": 0.265,
+        "cpuSystemSeconds": 0.078,
+        "logicalCpuPercent": 1.094,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 22.774,
+        "loopMaxMs": 23.151,
+        "maxPulseDelayMs": 18.835,
+        "peakRssMiB": 198.027,
+        "gc": {
+          "events": 17,
+          "totalMs": 6.548,
+          "maxMs": 0.892
+        },
+        "storage": {
+          "readBytes": 536870895,
+          "readCalls": 130,
+          "copiedBytes": 8388608,
+          "allocatedBytes": 545259503
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "upstream",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 357.96,
+        "throughputMiBps": 1430.327,
+        "cpuSeconds": 0.812,
+        "cpuUserSeconds": 0.562,
+        "cpuSystemSeconds": 0.25,
+        "logicalCpuPercent": 14.178,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 7.565,
+        "loopMaxMs": 13.885,
+        "maxPulseDelayMs": 4.607,
+        "peakRssMiB": 162.895,
+        "gc": {
+          "events": 31,
+          "totalMs": 11.593,
+          "maxMs": 1.189
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "balanced",
+        "run": 1,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 1958.82,
+        "throughputMiBps": 261.382,
+        "cpuSeconds": 0.484,
+        "cpuUserSeconds": 0.375,
+        "cpuSystemSeconds": 0.109,
+        "logicalCpuPercent": 1.544,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 20.12,
+        "loopMaxMs": 29.917,
+        "maxPulseDelayMs": 23.745,
+        "peakRssMiB": 250.629,
+        "gc": {
+          "events": 10,
+          "totalMs": 4.483,
+          "maxMs": 1.191
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "balanced",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 1960.043,
+        "throughputMiBps": 261.219,
+        "cpuSeconds": 0.578,
+        "cpuUserSeconds": 0.36,
+        "cpuSystemSeconds": 0.218,
+        "logicalCpuPercent": 1.843,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 20.759,
+        "loopMaxMs": 29.016,
+        "maxPulseDelayMs": 24.374,
+        "peakRssMiB": 254.66,
+        "gc": {
+          "events": 10,
+          "totalMs": 3.688,
+          "maxMs": 0.764
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "upstream",
+        "run": 2,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 335.481,
+        "throughputMiBps": 1526.168,
+        "cpuSeconds": 0.671,
+        "cpuUserSeconds": 0.484,
+        "cpuSystemSeconds": 0.187,
+        "logicalCpuPercent": 12.501,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 4.588,
+        "loopMaxMs": 6.922,
+        "maxPulseDelayMs": 3.494,
+        "peakRssMiB": 170.938,
+        "gc": {
+          "events": 31,
+          "totalMs": 10.398,
+          "maxMs": 0.944
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "upstream",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 339.207,
+        "throughputMiBps": 1509.405,
+        "cpuSeconds": 0.609,
+        "cpuUserSeconds": 0.531,
+        "cpuSystemSeconds": 0.078,
+        "logicalCpuPercent": 11.221,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 5.435,
+        "loopMaxMs": 13.91,
+        "maxPulseDelayMs": 8.488,
+        "peakRssMiB": 171.129,
+        "gc": {
+          "events": 30,
+          "totalMs": 10.406,
+          "maxMs": 1.01
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 536870912,
+          "allocatedBytes": 1073741824
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      },
+      {
+        "scenario": "paused-live-subset",
+        "mode": "balanced",
+        "run": 3,
+        "bytes": 536870912,
+        "pieceLength": 4194304,
+        "pieces": 128,
+        "elapsedMs": 1959.816,
+        "throughputMiBps": 261.249,
+        "cpuSeconds": 0.814,
+        "cpuUserSeconds": 0.532,
+        "cpuSystemSeconds": 0.282,
+        "logicalCpuPercent": 2.596,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 20.333,
+        "loopMaxMs": 30.654,
+        "maxPulseDelayMs": 26.011,
+        "peakRssMiB": 238.668,
+        "gc": {
+          "events": 8,
+          "totalMs": 3.101,
+          "maxMs": 0.802
+        },
+        "storage": {
+          "readBytes": 536870912,
+          "readCalls": 128,
+          "copiedBytes": 0,
+          "allocatedBytes": 536870912
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": true,
+          "fixtureOwnedByHarness": false
+        }
+      }
+    ],
+    "interpretation": "Process CPU includes async crypto threads; excludes UI/GPU. Each variant rereads the same bounded subset. Windows file cache is warm and variants alternate order; these are verification measurements, not a full 151 GiB scan. Fixture uses the actual sparse and upstream store get methods. The live readonly adapter models their buffer-copy difference and never creates a live FsChunkStore. The shared hash budget allows bounded idle credit and work ahead (16 ms each, plus the current piece); a short 512 MiB pass can therefore average slightly above 256 MiB/s. logicalCpuPercent divides measured process CPU seconds by wall time and 16 logical CPUs; it is an estimate of whole-machine process load, not a UI responsiveness test. Timer delay did not improve in these paced runs."
+  },
+  "smallPieces": {
+    "generatedAt": "2026-09-29T22:52:20.963Z",
+    "runtime": "v24.21.0",
+    "platform": "win32/x64",
+    "logicalCpuCount": 16,
+    "baseline": "Synchronous SHA-1, two reads in flight, yielded scheduler, concat even for one-file pieces",
+    "variants": {
+      "fast-store": "single-file buffer reuse only",
+      "async-hash": "WebCrypto SHA-1 only, original concatenation",
+      "optimized": "buffer reuse and WebCrypto SHA-1",
+      "upstream": "unmodified WebTorrent 3.0.21 verifier, available as a separate optional control",
+      "balanced": "synchronous SHA-1, yielded scheduler, buffer reuse, shared 256 MiB/s rate budget"
+    },
+    "limits": {
+      "maxSubsetMiB": 32,
+      "fixturePieceKiB": 16,
+      "maxTotalSourceMiB": 512,
+      "repeat": 1,
+      "timePerChildSeconds": 45,
+      "priority": "below normal",
+      "network": "none",
+      "rateWindowMs": 16
+    },
+    "fixture": {
+      "sharedFileBoundaries": true,
+      "shortLastPiece": true
+    },
+    "live": null,
+    "results": [
+      {
+        "scenario": "fixture",
+        "mode": "upstream",
+        "run": 1,
+        "bytes": 33554415,
+        "pieceLength": 16384,
+        "pieces": 2048,
+        "elapsedMs": 70.06,
+        "throughputMiBps": 456.75,
+        "cpuSeconds": 0.187,
+        "cpuUserSeconds": 0.109,
+        "cpuSystemSeconds": 0.078,
+        "logicalCpuPercent": 16.682,
+        "rateLimitMiBps": 0,
+        "loopP99Ms": 6.062,
+        "loopMaxMs": 15.483,
+        "maxPulseDelayMs": 11.573,
+        "peakRssMiB": 109.238,
+        "gc": {
+          "events": 2,
+          "totalMs": 1.004,
+          "maxMs": 0.902
+        },
+        "storage": {
+          "readBytes": 33554415,
+          "readCalls": 2050,
+          "copiedBytes": 33554415,
+          "allocatedBytes": 67108830
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      },
+      {
+        "scenario": "fixture",
+        "mode": "balanced",
+        "run": 1,
+        "bytes": 33554415,
+        "pieceLength": 16384,
+        "pieces": 2048,
+        "elapsedMs": 102.341,
+        "throughputMiBps": 312.681,
+        "cpuSeconds": 0.063,
+        "cpuUserSeconds": 0.032,
+        "cpuSystemSeconds": 0.031,
+        "logicalCpuPercent": 3.847,
+        "rateLimitMiBps": 256,
+        "loopP99Ms": 15.065,
+        "loopMaxMs": 16.089,
+        "maxPulseDelayMs": 12.873,
+        "peakRssMiB": 89.379,
+        "gc": {
+          "events": 2,
+          "totalMs": 1.196,
+          "maxMs": 1.081
+        },
+        "storage": {
+          "readBytes": 33554415,
+          "readCalls": 2050,
+          "copiedBytes": 32768,
+          "allocatedBytes": 33587183
+        },
+        "correctness": {
+          "sha1AllMatched": true,
+          "liveReadOnlyHandles": false,
+          "fixtureOwnedByHarness": true
+        }
+      }
+    ],
+    "interpretation": "Process CPU includes async crypto threads; excludes UI/GPU. Each variant rereads the same bounded subset. Windows file cache is warm and variants alternate order; these are verification measurements, not a full 151 GiB scan. Fixture uses the actual sparse and upstream store get methods. The live readonly adapter models their buffer-copy difference and never creates a live FsChunkStore. This 32 MiB fixture uses 2048 pieces of 16 KiB. The 102 ms balanced pass confirms the absence of a timer per piece slowdown; bounded initial credit dominates its short duration, so its average throughput is not a sustained-rate estimate."
+  }
+}

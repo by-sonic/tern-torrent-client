@@ -13,8 +13,9 @@ const SPARSE_MIN_BYTES = 32 * 1024 * 1024
  * of pointless writes: it saturates the disk, blocks Node's I/O thread pool (which DNS lookups
  * share, so the network stalls too) and can freeze the whole computer.
  *
- * This store is fs-chunk-store with one change: files are opened through random-access-file with
- * `sparse: true`, which marks them sparse before the first write.
+ * Files are opened through random-access-file with `sparse: true`, which marks them sparse
+ * before the first write. Reads contained in one file return its buffer directly: the upstream
+ * store copies even a single buffer through concat(), allocating a second full piece.
  *
  * @returns {Promise<typeof import('fs-chunk-store').default>} a store class WebTorrent accepts as `store`
  */
@@ -29,6 +30,24 @@ async function loadSparseStore () {
         if (!(file.length >= SPARSE_MIN_BYTES)) continue
         file.open = this._sparseOpener(file)
       }
+    }
+
+    get (index, opts, cb) {
+      if (typeof opts === 'function') return this.get(index, null, opts)
+      const targets = this.chunkMap[index]
+      // Let upstream own closed-store errors, unbounded stores and multi-file pieces.
+      if (this.closed || this.length === Infinity || !targets || targets.length !== 1) return super.get(index, opts, cb)
+      const chunkLength = index === this.lastChunkIndex ? this.lastChunkLength : this.chunkLength
+      const rangeFrom = (opts && opts.offset) || 0
+      const rangeTo = opts && opts.length ? rangeFrom + opts.length : chunkLength
+      const target = targets[0]
+      // Delegate empty and invalid ranges too, preserving their asynchronous/error semantics.
+      if (!Number.isInteger(rangeFrom) || !Number.isInteger(rangeTo) ||
+          rangeFrom < target.from || rangeTo > target.to || rangeTo <= rangeFrom) return super.get(index, opts, cb)
+      target.file.open((err, file) => {
+        if (err) return cb(err)
+        file.read(target.offset + rangeFrom - target.from, rangeTo - rangeFrom, cb)
+      })
     }
 
     /** Same contract as fs-chunk-store's own `file.open`: memoised, calls back with the open file. */

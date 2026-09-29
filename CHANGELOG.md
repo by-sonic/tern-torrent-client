@@ -4,6 +4,29 @@ All notable changes to Tern are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-30
+
+### Added
+- A full-screen update check before the torrent engine starts. New versions download, install and restart automatically.
+  A failed check, download or installer leaves Retry and Launch Tern available. Launch requests survive the updater restart.
+- A shared file-verification limit, defaulting to 256 MiB/s across active torrents. Change it in Settings; zero is unlimited.
+- Verification progress counts checked pieces and bytes separately from downloaded data, including invalid or missing pieces.
+- A bounded verification benchmark and Electron checks for verification over IPC and the startup update screen.
+
+### Changed
+- Single-file piece reads reuse the original buffer. Shared file boundaries keep the original store path.
+- Verification refills yield to the event loop; startup corruption fallback deduplicates pieces without quadratic scans.
+- Background update checks remain configurable. The startup check runs on every launch of the installed app.
+- An unlimited, read-only 512 MiB comparison with 1.0.3 used 33.8% less total verification CPU time and completed 29.6% sooner.
+  With the default budget, a separate comparison lowered mean engine CPU from 12.63% to 1.99% on a 16-thread PC,
+  while that subset took about 1.96 seconds instead of 0.34 seconds. See `docs/verification.md` for measurements and limits.
+
+### Fixed
+- Checking existing data no longer shows the saved download percentage for the entire scan.
+- Missing data bypasses verification pacing, so empty torrents can begin downloading promptly.
+- Late update responses cannot start a download or installation after leaving the startup error screen.
+- A failed startup installer launch keeps the error screen open; Tern quits only after the OS confirms process creation.
+
 ## [1.0.3] - 2026-09-30
 
 ### Changed

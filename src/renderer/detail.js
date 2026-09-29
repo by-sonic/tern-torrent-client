@@ -3,6 +3,7 @@ import { renderFiles } from './files-list.js'
 import { drawMosaic, drawPieceMap } from './canvas.js'
 import { fmtBytes, fmtRate, fmtEta, plural } from './format.js'
 import { STATE_LABEL, ERRORS } from './strings.js'
+import { visibleProgress, visiblePieces } from './verification-progress.js'
 
 const LIVE = new Set(['downloading', 'connecting', 'checking'])
 const FILE_REFRESH_MS = 3000
@@ -37,7 +38,7 @@ export function createDetail ({ onMove, onRemoved }) {
     if (!torrent) return
     const mode = LIVE.has(torrent.state) ? 'live' : 'quiet'
     drawMosaic(mosaic, torrent.pieces, mode)
-    drawPieceMap(strip, torrent.pieces, mode, { tick: 3, gap: 2 })
+    drawPieceMap(strip, visiblePieces(torrent), mode, { tick: 3, gap: 2 })
   }
   const observer = new ResizeObserver(paint)
   observer.observe(strip)
@@ -103,10 +104,13 @@ export function createDetail ({ onMove, onRemoved }) {
       $('detail-chips').replaceChildren(...chips)
     }
 
-    text('detail-pct', `${Math.floor(t.progress * 100)}%`)
-    const stats = [['↓ ', fmtRate(t.down)], ['↑ ', fmtRate(t.up)]]
+    text('detail-pct', `${Math.floor(visibleProgress(t) * 100)}%`)
+    const checking = t.state === 'checking' && t.verification
+    const stats = checking
+      ? [['проверено ', `${fmtBytes(checking.bytes)} из ${fmtBytes(checking.totalBytes)}`], ['частей ', `${checking.checked.toLocaleString('ru-RU')} из ${checking.total.toLocaleString('ru-RU')}`]]
+      : [['↓ ', fmtRate(t.down)], ['↑ ', fmtRate(t.up)]]
     if (t.eta !== null && t.state === 'downloading') stats.push(['осталось ', fmtEta(t.eta)])
-    stats.push(['скачано ', `${fmtBytes(t.size * t.progress)} из ${fmtBytes(t.size)}`])
+    if (!checking) stats.push(['скачано ', `${fmtBytes(t.size * t.progress)} из ${fmtBytes(t.size)}`])
     if (t.uploaded) stats.push(['отдано ', fmtBytes(t.uploaded)])
     const statsKey = JSON.stringify(stats.map(([label]) => label))
     if (last.stats !== statsKey) {

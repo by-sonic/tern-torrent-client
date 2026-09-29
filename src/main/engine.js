@@ -9,6 +9,7 @@ const { MAX_TORRENT_FILE_BYTES, MAX_TORRENT_FILES, isLocalAbsolutePath } = requi
 const { loadSparseStore } = require('./sparse-store')
 const { torrentOptions, dropRarityMap, installTorrentOptimizations } = require('./torrent-tuning')
 const { measureTorrentProgress } = require('./progress')
+const { installTorrentVerification, createVerificationBudget } = require('./verification')
 
 const TICK_MS = 1000 // while a window is showing the list
 const BACKGROUND_TICK_MS = 5000 // tray only: nothing to draw, so wake up rarely and do almost no work
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   downloadDir: '',
   downLimitKB: 0,
   upLimitKB: 0,
+  verifyLimitMB: 256,
   maxActive: 3,
   seedAfterDone: true,
   closeToTray: true,
@@ -40,6 +42,7 @@ function mergeSettings (base, patch) {
     if (patch[key] !== undefined) next[key] = clampInt(patch[key], 0, 10_000_000)
   }
   if (patch.maxActive !== undefined) next.maxActive = clampInt(patch.maxActive, 1, 20)
+  if (patch.verifyLimitMB !== undefined) next.verifyLimitMB = clampInt(patch.verifyLimitMB, 0, 4096)
   for (const key of ['seedAfterDone', 'closeToTray', 'launchAtLogin', 'autoUpdate']) {
     if (typeof patch[key] === 'boolean') next[key] = patch[key]
   }
@@ -107,6 +110,7 @@ class Engine extends EventEmitter {
     this.clientOptions = clientOptions || { natUpnp: true, natPmp: true, lsd: true, utp: false, webSeeds: false }
     this.entries = new Map()
     this.settings = { ...DEFAULT_SETTINGS, downloadDir: defaultDir }
+    this.verificationBudget = createVerificationBudget(this.settings.verifyLimitMB * 1024 ** 2)
     this.client = null
     this.parseTorrent = null
     this.tickTimer = null
@@ -394,6 +398,7 @@ class Engine extends EventEmitter {
     const { downLimitKB, upLimitKB } = this.settings
     this.client.throttleDownload(downLimitKB > 0 ? downLimitKB * KB : -1)
     this.client.throttleUpload(upLimitKB > 0 ? upLimitKB * KB : -1)
+    this.verificationBudget.setRate(this.settings.verifyLimitMB * 1024 ** 2)
   }
 
   /** Start or stop torrents so the running set matches the queue plan. */
@@ -492,6 +497,7 @@ class Engine extends EventEmitter {
   _onMetadata (entry, torrent) {
     dropRarityMap(torrent)
     installTorrentOptimizations(torrent)
+    installTorrentVerification(torrent, { budget: this.verificationBudget })
     if (torrent.files.length > MAX_TORRENT_FILES) {
       entry.error = 'too-many-files'
       this._stop(entry, { keepBitfield: false })
@@ -697,6 +703,7 @@ class Engine extends EventEmitter {
     const isReady = Boolean(live && live.ready)
     const size = this._selectedLength(entry)
     const { got, pieces } = this._progressCache(entry, isReady)
+    const checking = !isReady && live && live._ternVerification?.total > 0 ? live._ternVerification : null
 
     return {
       id: entry.id,
@@ -706,6 +713,9 @@ class Engine extends EventEmitter {
       size,
       total: entry.length,
       progress: entry.done ? 1 : size ? Math.min(1, got / size) : 0,
+      // Verification attempts include invalid and missing pieces. Keep them
+      // separate from downloaded bytes so a checked hole never looks complete.
+      verification: checking ? { ...checking } : null,
       down: live ? live.downloadSpeed : 0,
       up: live ? live.uploadSpeed : 0,
       peers: live ? live.numPeers : 0,

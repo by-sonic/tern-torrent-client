@@ -124,7 +124,7 @@ export function createPicker () {
 export function initSettings (getSettings) {
   const dialog = $('dlg-settings')
   const fields = {
-    down: $('set-down'), up: $('set-up'), active: $('set-active'),
+    down: $('set-down'), up: $('set-up'), verify: $('set-verify'), active: $('set-active'),
     seed: $('set-seed'), tray: $('set-tray'), login: $('set-login'), update: $('set-update')
   }
   const save = (patch) => run(window.tern.setSettings(patch))
@@ -134,6 +134,7 @@ export function initSettings (getSettings) {
     const s = getSettings()
     fields.down.value = s.downLimitKB
     fields.up.value = s.upLimitKB
+    fields.verify.value = s.verifyLimitMB ?? 256
     fields.active.value = s.maxActive
     fields.seed.checked = s.seedAfterDone
     fields.tray.checked = s.closeToTray
@@ -147,6 +148,7 @@ export function initSettings (getSettings) {
   $('set-close').addEventListener('click', () => closeDialog(dialog))
   fields.down.addEventListener('change', () => save({ downLimitKB: num(fields.down) }))
   fields.up.addEventListener('change', () => save({ upLimitKB: num(fields.up) }))
+  fields.verify.addEventListener('change', () => save({ verifyLimitMB: Math.min(4096, num(fields.verify)) }))
   fields.active.addEventListener('change', () => save({ maxActive: Math.max(1, num(fields.active)) }))
   fields.seed.addEventListener('change', () => save({ seedAfterDone: fields.seed.checked }))
   fields.tray.addEventListener('change', () => save({ closeToTray: fields.tray.checked }))

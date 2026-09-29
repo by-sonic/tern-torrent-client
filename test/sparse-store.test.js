@@ -79,6 +79,66 @@ test('the store keeps fs-chunk-store semantics (closed store rejects, destroy re
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
+test('single-file reads return the original read buffer and forward asynchronous read errors', async () => {
+  const Store = await loadSparseStore()
+  const store = new Store(16, { path: tmp(), files: [{ path: 'mock.bin', length: 16 }] })
+  const buffer = Buffer.from('0123456789abcdef')
+  const failure = new Error('EPARTIALREAD: fixture read failure')
+  let fail = false
+  store.files[0].open = (cb) => queueMicrotask(() => cb(null, {
+    read: (offset, length, done) => queueMicrotask(() => fail ? done(failure) : done(null, buffer.subarray(offset, offset + length)))
+  }))
+  try {
+    let returned = false
+    const back = await call((cb) => {
+      store.get(0, (err, data) => { assert.equal(returned, true); cb(err, data) })
+      returned = true
+    })
+    assert.equal(back.buffer, buffer.buffer, 'one-file read does not copy its backing memory')
+    assert.equal(back.byteOffset, buffer.byteOffset)
+    fail = true
+    await assert.rejects(call((cb) => store.get(0, cb)), (err) => err === failure)
+  } finally {
+    fs.rmSync(store.path, { recursive: true, force: true })
+  }
+})
+
+test('read fast path preserves shared boundaries, short last piece, subranges and empty ranges', async () => {
+  const dir = tmp()
+  const Store = await loadSparseStore()
+  const store = new Store(16, { path: dir, files: [{ path: 'a.bin', length: 24 }, { path: 'b.bin', length: 13 }] })
+  const data = Buffer.from(Array.from({ length: 37 }, (_, i) => i))
+  try {
+    for (let i = 0; i < 3; i++) await call((cb) => store.put(i, data.subarray(i * 16, Math.min(data.length, (i + 1) * 16)), cb))
+    for (let i = 0; i < 3; i++) {
+      const back = await call((cb) => store.get(i, cb))
+      assert.deepEqual(Buffer.from(back), data.subarray(i * 16, Math.min(data.length, (i + 1) * 16)))
+    }
+    assert.deepEqual(Buffer.from(await call((cb) => store.get(0, { offset: 3, length: 5 }, cb))), data.subarray(3, 8))
+    assert.deepEqual(Buffer.from(await call((cb) => store.get(1, { offset: 6, length: 4 }, cb))), data.subarray(22, 26))
+    assert.deepEqual(Buffer.from(await call((cb) => store.get(1, { offset: 10, length: 3 }, cb))), data.subarray(26, 29))
+    assert.deepEqual(Buffer.from(await call((cb) => store.get(2, { length: 5 }, cb))), data.subarray(32))
+    // For finite stores upstream rejects the end-of-piece range after filtering targets.
+    await assert.rejects(call((cb) => store.get(2, { offset: 5 }, cb)), /no files matching the requested range/)
+    const unbounded = new Store(16, { path: path.join(dir, 'unbounded.bin') })
+    assert.equal((await call((cb) => unbounded.get(0, { offset: 16 }, cb))).length, 0)
+    // Upstream treats a zero length option as an omitted option, not an empty read.
+    assert.equal((await call((cb) => store.get(0, { length: 0 }, cb))).length, 16)
+    await assert.rejects(call((cb) => store.get(0, { offset: -1 }, cb)), /Invalid offset/)
+    await assert.rejects(call((cb) => store.get(2, { length: 6 }, cb)), /Invalid offset/)
+    await assert.rejects(call((cb) => store.get(5, cb)), /no files/)
+    await call((cb) => store.close(cb))
+    let returned = false
+    await assert.rejects(call((cb) => {
+      store.get(0, (err, value) => { assert.equal(returned, true); cb(err, value) })
+      returned = true
+    }), /closed/i)
+  } finally {
+    if (!store.closed) await call((cb) => store.close(cb)).catch(() => {})
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('torrentOptions picks sequential order, our store and a small piece cache', () => {
   const store = class {}
   const opts = torrentOptions({ path: 'D:\\dl', store })
