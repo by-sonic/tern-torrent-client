@@ -25,6 +25,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      # Lifecycle scripts stay off: nothing here needs a native build.
+      # Lifecycle scripts stay off for everything except the one package that needs them:
+      # WebTorrent imports node-datachannel, which fetches its prebuilt native binary in an install script.
       - run: npm ci --ignore-scripts
+      - run: npm rebuild node-datachannel
+      - name: Native module is present
+        run: node -e "import('node-datachannel').then(() => console.log('node-datachannel OK'))"
       - run: npm test
