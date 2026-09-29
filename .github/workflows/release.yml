@@ -62,7 +62,20 @@ jobs:
       - name: Native module is present
         run: node -e "import('node-datachannel').then(() => console.log('node-datachannel OK'))"
 
-      # Uploads Tern-Setup-<version>.exe, its .blockmap and latest.yml to a DRAFT release.
+      # electron-builder uploads the files in parallel and, if no release exists yet, each upload
+      # can create its own: two drafts with the assets split between them. Create the one draft first.
+      - name: Create the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $existing = gh api "repos/$env:GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == `"$tag`") | .id"
+          if ($existing) { Write-Host "Release for $tag already exists: $existing"; exit 0 }
+          gh release create $tag --draft --verify-tag --title "Tern $($tag.TrimStart('v'))" --notes 'Building the installer…'
+          if ($LASTEXITCODE -ne 0) { throw 'could not create the draft release' }
+
+      # Uploads Tern-Setup-<version>.exe, its .blockmap and latest.yml to that DRAFT release.
       # Installed copies of Tern read latest.yml to update, and they never see drafts.
       - name: Build and upload to a draft release
         run: npx electron-builder --win nsis --publish always
