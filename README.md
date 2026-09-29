@@ -33,7 +33,7 @@
 - **Choose what to download.** See every file in a torrent before it starts, untick what you don't need, change your mind later.
 - **A live piece map.** Every download draws the real shape of the torrent as pieces arrive, in the list and as a mosaic in the details panel.
 - **Speed limits and a queue.** Cap download and upload speed, choose how many torrents run at once, and reorder the queue.
-- **Automatic updates.** Tern checks this repository's releases, downloads new versions in the background and installs them on restart. You can switch it off.
+- **Automatic updates.** Tern checks and installs updates before starting the torrent engine. Additional background checks are optional.
 - **Runs in the tray.** Close the window and keep seeding; optionally start with Windows.
 - **Light and dark themes** that follow Windows, a search box and sortable columns.
 - **Small and private.** Peer traffic and the update check are the only network activity. Everything is stored on your computer.
@@ -54,7 +54,9 @@ Windows does not let apps claim file types silently. Tern's **Make default** but
 
 ## Automatic updates
 
-Tern checks GitHub Releases shortly after it starts and every six hours. A new version downloads in the background; you see a banner and can restart to update, or it installs the next time you quit. Turn it off under **Settings → Check for updates automatically**. Updates are verified against the SHA-512 in the release's `latest.yml`.
+Before opening the torrent window or starting the engine, Tern checks GitHub Releases on a full-screen update screen. If a new version is available, it downloads, installs and restarts automatically. If the check or download fails, you can retry or choose **Launch Tern** to use the installed version.
+
+Additional checks run every six hours while Tern is open. Disable these under **Settings → Check for updates in the background**. This setting does not disable the startup check. Background updates still use a banner and install on restart. Downloads are verified against the SHA-512 in the release's `latest.yml`.
 
 ## FAQ
 

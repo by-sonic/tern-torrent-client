@@ -135,6 +135,47 @@ test('finishing with seeding disabled closes stores after WebTorrent completes i
   assert.equal(engine.entries.get(id).error, null)
 })
 
+test('full initial verification publishes attempts separately from downloaded bytes', async (t) => {
+  const swarm = await makeSwarm(t)
+  const engine = await swarm.engine({ tickMs: 10 })
+  engine.setObserved(true)
+  const { id, listed } = await addAndPick(swarm, engine)
+  const completed = new Promise((resolve) => engine.once('completed', resolve))
+  await engine.confirm(id, { selected: listed.map(() => true), dir: '' })
+  await withTimeout(completed, 'fixture download')
+  engine.pause(id)
+  await waitFor(() => !engine.entries.get(id).stopping, 'paused stores closed')
+  const entry = engine.entries.get(id)
+  entry.bitfield = null // require a real full check of the existing files
+  entry.done = false
+  entry.progressBytes = 0
+  entry.fp = null
+  const BaseStore = engine.store
+  engine.store = class SlowReadStore extends BaseStore {
+    get (index, opts, callback) {
+      if (typeof opts === 'function') { callback = opts; opts = null }
+      super.get(index, opts, (err, bytes) => setTimeout(() => callback(err, bytes), 15))
+    }
+  }
+  const published = []
+  engine.on('state', (state) => {
+    const row = state.torrents.find((torrent) => torrent.id === id)
+    if (row?.state === 'checking' && row.verification?.checked > 0) published.push(row.verification.checked)
+  })
+  engine.resume(id)
+  const checking = await waitFor(() => {
+    const state = stateOf(engine, id)
+    return state.state === 'checking' && state.verification?.checked > 0 && state.verification.checked < state.verification.total && state
+  }, 'incremental verification snapshot')
+  assert.equal(checking.progress, 0, 'attempts do not count as downloaded bytes')
+  assert.ok(checking.verification.bytes > 0)
+  assert.ok(checking.verification.totalBytes >= checking.verification.bytes)
+  await waitFor(() => stateOf(engine, id).state === 'seeding', 'valid files verified')
+  assert.ok(new Set(published).size >= 2, 'visible observers receive changing checking snapshots')
+  assert.equal(stateOf(engine, id).progress, 1)
+  assert.equal(stateOf(engine, id).verification, null)
+})
+
 test('widening the selection of a finished, stopped torrent downloads the new file', async (t) => {
   const swarm = await makeSwarm(t)
   const engine = await swarm.engine()

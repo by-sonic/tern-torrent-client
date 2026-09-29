@@ -1,7 +1,7 @@
 {
   "name": "tern",
   "productName": "Tern",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Tern is a fast, minimal BitTorrent client for Windows: magnet links, selective file download, speed limits, queue and automatic updates.",
   "author": {
     "name": "by-sonic",
@@ -13,19 +13,20 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test --test-force-exit test/*.test.js",
-    "test:electron": "electron scripts/engine-smoke.js && electron scripts/renderer-smoke.js",
+    "test:electron": "electron scripts/engine-smoke.js && node scripts/verification-smoke.js && electron scripts/renderer-smoke.js && electron scripts/startup-smoke.js",
     "icons": "node scripts/make-icons.js",
     "dist": "electron-builder --win nsis --publish never",
     "release": "electron-builder --win nsis --publish always",
     "screenshots": "electron scripts/screenshots.js && electron scripts/social-card.js",
     "bench": "node scripts/bench/active-profile.cjs --electron",
-    "bench:active": "node scripts/bench/active-profile.cjs --electron --mode both --repeat 2"
+    "bench:active": "node scripts/bench/active-profile.cjs --electron --mode both --repeat 2",
+    "bench:verify": "node scripts/bench/verify-profile.cjs --electron"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/onest": "^5.3.0",
-    "electron-updater": "^6.8.9",
+    "electron-updater": "6.8.9",
     "parse-torrent": "^11.0.0",
     "webtorrent": "3.0.21"
   },

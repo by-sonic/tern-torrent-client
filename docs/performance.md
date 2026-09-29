@@ -1,6 +1,8 @@
-# High-throughput downloads
+# Download and verification performance
 
 Tern 1.0.3 addresses CPU spikes and an unresponsive window during fast, large downloads. The report below compares the download engine with the 1.0.2 baseline and records the bounded tests used to choose the final implementation. It does not predict CPU usage for every torrent or network.
+
+Tern 1.1.0 separately addresses checking existing files. This path was not covered by the original transfer benchmark. See [verification measurements](verification.md) for the read-only checks of existing data, the shared verification limit and its tradeoffs.
 
 ## Why large downloads became expensive
 

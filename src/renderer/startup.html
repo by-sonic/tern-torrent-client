@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
+  <title>Tern — обновление</title>
+  <link rel="stylesheet" href="../../node_modules/@fontsource-variable/bricolage-grotesque/wdth.css">
+  <link rel="stylesheet" href="../../node_modules/@fontsource-variable/onest/index.css">
+  <link rel="stylesheet" href="../../node_modules/@fontsource-variable/geist-mono/index.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="startup.css">
+</head>
+<body>
+  <header class="startup-header">
+    <div class="startup-brand"><img src="../../assets/logo.png" width="34" height="34" alt=""><span>Tern</span></div>
+    <button id="startup-close" class="startup-close" aria-label="Закрыть Tern" title="Закрыть Tern">×</button>
+  </header>
+  <main class="startup-main">
+    <div class="startup-content">
+      <p class="eyebrow" id="startup-version">Tern</p>
+      <h1 id="startup-title">Проверяем обновления</h1>
+      <p class="startup-description" id="startup-description">Ищем последнюю версию Tern.</p>
+      <div class="startup-progress" id="startup-progress" role="progressbar" aria-label="Обновление Tern" aria-valuemin="0" aria-valuemax="100"><i id="startup-progress-fill"></i></div>
+      <div class="startup-detail mono"><span id="startup-transfer">Подключаемся к серверу обновлений…</span><span id="startup-percent" hidden>0%</span></div>
+      <ol class="startup-steps" aria-label="Этапы обновления">
+        <li id="startup-step-check" aria-current="step"><span>01</span> Проверка</li>
+        <li id="startup-step-download"><span>02</span> Загрузка</li>
+        <li id="startup-step-install"><span>03</span> Установка</li>
+      </ol>
+      <div class="startup-actions" id="startup-actions" hidden>
+        <button id="startup-continue" class="btn btn-primary">Запустить Tern</button>
+        <button id="startup-retry" class="btn">Повторить проверку</button>
+      </div>
+      <p id="startup-announcement" class="startup-sr" role="status" aria-live="polite" aria-atomic="true"></p>
+    </div>
+  </main>
+  <footer class="startup-footer">Обновление перед запуском</footer>
+  <script src="startup.js"></script>
+</body>
+</html>

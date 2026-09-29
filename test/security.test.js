@@ -22,6 +22,9 @@ test('mergeSettings clamps numbers, checks types and ignores junk', () => {
   const next = mergeSettings(base, { downLimitKB: -5, upLimitKB: '512', maxActive: 999, seedAfterDone: 'no', evil: 1, downloadDir: '\\\\host\\share' })
   assert.deepEqual(next, { ...base, upLimitKB: 512, maxActive: 20 })
   assert.equal(mergeSettings(base, { maxActive: 'abc' }).maxActive, 1)
+  assert.equal(mergeSettings(base, { verifyLimitMB: -1 }).verifyLimitMB, 0)
+  assert.equal(mergeSettings(base, { verifyLimitMB: 100000 }).verifyLimitMB, 4096)
+  assert.equal(mergeSettings(base, { verifyLimitMB: '128' }).verifyLimitMB, 128)
 })
 
 test('cleanRecord rejects bad ids and repairs bad fields', () => {
