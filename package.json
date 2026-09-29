@@ -1,0 +1,128 @@
+{
+  "name": "tern",
+  "productName": "Tern",
+  "version": "1.0.0",
+  "description": "Tern is a fast, minimal BitTorrent client for Windows: magnet links, selective file download, speed limits, queue and automatic updates.",
+  "author": {
+    "name": "by-sonic",
+    "url": "https://github.com/by-sonic"
+  },
+  "license": "MIT",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test --test-force-exit test/*.test.js",
+    "icons": "node scripts/make-icons.js",
+    "dist": "electron-builder --win nsis --publish never",
+    "release": "electron-builder --win nsis --publish always",
+    "screenshots": "electron scripts/screenshots.js && electron scripts/social-card.js"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fontsource-variable/onest": "^5.3.0",
+    "electron-updater": "^6.8.9",
+    "parse-torrent": "^11.0.0",
+    "webtorrent": "^3.0.21"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "pngjs": "^7.0.0"
+  },
+  "build": {
+    "appId": "io.github.bysonic.tern",
+    "productName": "Tern",
+    "copyright": "Copyright (c) 2026 by-sonic",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!assets/logo-source.png",
+      "package.json",
+      "!**/*.map"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "include": "build/installer.nsh",
+      "shortcutName": "Tern"
+    },
+    "fileAssociations": [
+      {
+        "ext": "torrent",
+        "name": "BitTorrent file",
+        "description": "BitTorrent file",
+        "icon": "assets/icon.ico",
+        "role": "Viewer"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "Magnet link",
+        "schemes": [
+          "magnet"
+        ]
+      }
+    ],
+    "artifactName": "Tern-Setup-${version}.${ext}",
+    "extraResources": [
+      {
+        "from": "assets/icon.ico",
+        "to": "tern.ico"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "by-sonic",
+        "repo": "tern-torrent-client",
+        "releaseType": "draft"
+      }
+    ]
+  },
+  "homepage": "https://github.com/by-sonic/tern-torrent-client#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/by-sonic/tern-torrent-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/by-sonic/tern-torrent-client/issues"
+  },
+  "keywords": [
+    "torrent",
+    "torrent-client",
+    "bittorrent",
+    "bittorrent-client",
+    "magnet",
+    "webtorrent",
+    "electron",
+    "windows",
+    "desktop-app",
+    "download-manager",
+    "p2p",
+    "auto-update"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

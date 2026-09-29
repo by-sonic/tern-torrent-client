@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+# Nothing is writable unless a job asks for it.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Tag must match package.json
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version v$version" >&2
+            exit 1
+          fi
+
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  publish:
+    name: Build and publish the Windows installer
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      # Uploads Tern-Setup-<version>.exe, its .blockmap and latest.yml to a DRAFT release.
+      # Installed copies of Tern read latest.yml to update, and they never see drafts.
+      - name: Build and upload to a draft release
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Check the assets, write the notes, then publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $installer = Get-ChildItem dist -Filter 'Tern-Setup-*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'installer was not built' }
+          if (-not (Test-Path dist/latest.yml)) { throw 'latest.yml was not generated' }
+
+          # node writes the file as UTF-8, so non-ASCII changelog text survives
+          node scripts/release-notes.js "$env:GITHUB_REF_NAME" notes.md
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          $tick = [char]96
+          Add-Content -Encoding utf8 notes.md @('', '### Checksum', '', $installer.Name, '', "${tick}sha256: $hash${tick}")
+
+          $assets = gh release view "$env:GITHUB_REF_NAME" --json assets --jq '.assets[].name'
+          foreach ($needed in @($installer.Name, 'latest.yml', "$($installer.Name).blockmap")) {
+            if ($assets -notcontains $needed) { throw "release is missing $needed" }
+          }
+          gh release edit "$env:GITHUB_REF_NAME" --notes-file notes.md --draft=false

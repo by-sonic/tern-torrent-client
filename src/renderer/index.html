@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
+  <title>Tern</title>
+  <link rel="stylesheet" href="../../node_modules/@fontsource-variable/bricolage-grotesque/wdth.css">
+  <link rel="stylesheet" href="../../node_modules/@fontsource-variable/onest/index.css">
+  <link rel="stylesheet" href="../../node_modules/@fontsource-variable/geist-mono/index.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">
+        <img class="brand-mark" id="logo" src="../../assets/logo.png" alt="" height="28">
+        <span class="brand-name">Tern</span>
+      </div>
+
+      <nav class="nav" id="nav" aria-label="Списки">
+        <button class="nav-item" data-filter="all" aria-current="true">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"/></svg>
+          <span class="nav-label">Все</span><span class="nav-count" data-count="all">0</span>
+        </button>
+        <button class="nav-item" data-filter="downloading">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></svg>
+          <span class="nav-label">Загрузка</span><span class="nav-count" data-count="downloading">0</span>
+        </button>
+        <button class="nav-item" data-filter="seeding">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13.5v-8M4.5 9L8 5.5 11.5 9M3 2.5h10"/></svg>
+          <span class="nav-label">Раздача</span><span class="nav-count" data-count="seeding">0</span>
+        </button>
+        <button class="nav-item" data-filter="finished">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>
+          <span class="nav-label">Завершено</span><span class="nav-count" data-count="finished">0</span>
+        </button>
+        <button class="nav-item" data-filter="paused">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10M11 3v10"/></svg>
+          <span class="nav-label">Пауза</span><span class="nav-count" data-count="paused">0</span>
+        </button>
+      </nav>
+
+      <div class="side-foot">
+        <div class="speed-card" aria-label="Скорость">
+          <div class="eyebrow">Скачивание</div>
+          <div class="speed"><span class="speed-num" id="speed-down">0</span><span class="speed-unit" id="speed-down-unit">КБ/с</span></div>
+          <canvas class="spark" id="spark" aria-hidden="true"></canvas>
+          <div class="speed-up"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13.5v-8M4.5 9L8 5.5 11.5 9M3 2.5h10"/></svg><span id="speed-up">0 КБ/с</span></div>
+        </div>
+        <button class="nav-item" id="open-settings">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h7M12 5h2M2 11h2M7 11h7M10.5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5.5 9.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
+          <span class="nav-label">Настройки</span>
+        </button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="toolbar">
+        <label class="search">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM10.8 10.8l3.5 3.5"/></svg>
+          <input id="search" type="search" placeholder="Поиск торрентов…" autocomplete="off" spellcheck="false" aria-label="Поиск торрентов">
+        </label>
+        <button class="btn btn-primary" id="add-file">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Добавить торрент
+        </button>
+        <button class="btn" id="add-magnet">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.6 9.4l2.8-2.8M7.2 4.6l.9-.9a2.7 2.7 0 0 1 3.8 3.8l-.9.9M8.8 11.4l-.9.9a2.7 2.7 0 0 1-3.8-3.8l.9-.9"/></svg>Добавить magnet
+        </button>
+        <button class="btn" id="toggle-all" data-mode="pause">
+          <svg id="toggle-all-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10M11 3v10"/></svg><span id="toggle-all-label">Приостановить все</span>
+        </button>
+      </header>
+
+      <div class="hint" id="handler-hint" hidden>
+        <span>Открывать .torrent-файлы и magnet-ссылки в Tern?</span>
+        <button class="link" id="hint-yes">Сделать по умолчанию</button>
+        <button class="link link-muted" id="hint-no">Позже</button>
+      </div>
+
+      <div class="hint hint-update" id="update-banner" hidden>
+        <span id="update-text"></span>
+        <button class="link" id="update-install" hidden>Перезапустить и обновить</button>
+        <button class="link link-muted" id="update-dismiss">Скрыть</button>
+      </div>
+
+      <div class="table" id="table">
+        <div class="thead" role="row" id="thead">
+          <span></span>
+          <button class="th" data-sort="name">Название<svg class="sort" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+          <button class="th" data-sort="status">Статус<svg class="sort" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+          <button class="th" data-sort="progress">Прогресс<svg class="sort" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+          <button class="th th-right" data-sort="speed">Скорость<svg class="sort" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+          <button class="th th-right" data-sort="size">Размер<svg class="sort" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+        </div>
+        <ul class="rows" id="list" aria-label="Торренты"></ul>
+
+        <div class="empty" id="empty" hidden>
+          <img class="empty-mark" id="empty-logo" src="../../assets/logo.png" alt="" height="96">
+          <div class="empty-title" id="empty-title">Здесь пока пусто</div>
+          <p class="empty-text" id="empty-text">Перетащи сюда .torrent-файл, вставь magnet-ссылку через Ctrl+V или нажми «Добавить торрент».</p>
+        </div>
+      </div>
+
+      <section class="detail" id="detail" aria-label="Подробности" hidden>
+        <div class="detail-top">
+          <canvas class="mosaic" id="mosaic" aria-hidden="true"></canvas>
+          <div class="detail-main">
+            <h2 class="detail-name" id="detail-name"></h2>
+            <div class="chips" id="detail-chips"></div>
+            <div class="detail-progress">
+              <canvas class="strip" id="detail-strip" aria-hidden="true"></canvas>
+              <span class="detail-pct" id="detail-pct">0%</span>
+            </div>
+            <div class="detail-stats" id="detail-stats"></div>
+          </div>
+          <div class="detail-actions">
+            <button class="btn" id="detail-toggle"></button>
+            <div class="detail-icons">
+              <button class="btn btn-quiet" id="detail-reveal" title="Показать в папке" aria-label="Показать в папке"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg></button>
+              <button class="btn btn-quiet" id="detail-up" title="Выше в очереди" aria-label="Выше в очереди"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
+              <button class="btn btn-quiet" id="detail-down" title="Ниже в очереди" aria-label="Ниже в очереди"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button>
+              <button class="btn btn-quiet btn-danger" id="detail-remove" title="Убрать из списка" aria-label="Убрать из списка"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg></button>
+              <button class="btn btn-quiet btn-danger" id="detail-trash" title="Убрать и удалить файлы" aria-label="Убрать и удалить файлы"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.8 4.5l.5 9h5.4l.5-9"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <p class="confirm" id="detail-confirm" hidden>
+          <span>Файлы уйдут в корзину. Продолжить?</span>
+          <button class="link link-danger" id="detail-confirm-yes">Да, удалить</button>
+          <button class="link" id="detail-confirm-no">Нет</button>
+        </p>
+
+        <div class="tabs" role="tablist" id="tabs">
+          <button class="tab" role="tab" data-tab="files" aria-selected="true">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></svg>Файлы
+          </button>
+          <button class="tab" role="tab" data-tab="trackers" aria-selected="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.2a6.2 6.2 0 1 0 0-12.4 6.2 6.2 0 0 0 0 12.4zM1.8 8h12.4M8 1.8c2 2 2.6 4 2.6 6.2S10 12.2 8 14.2C6 12.2 5.4 10.2 5.4 8S6 3.8 8 1.8z"/></svg>Трекеры
+          </button>
+          <button class="tab" role="tab" data-tab="info" aria-selected="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14.2a6.2 6.2 0 1 0 0-12.4 6.2 6.2 0 0 0 0 12.4zM8 7.2v3.6M8 5v.1"/></svg>Сведения
+          </button>
+        </div>
+        <div class="tab-body">
+          <ul class="files" id="detail-files" data-panel="files"></ul>
+          <ul class="trackers" id="detail-trackers" data-panel="trackers" hidden></ul>
+          <dl class="facts" id="detail-facts" data-panel="info" hidden></dl>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <div class="drop" id="drop" hidden><div class="drop-card">Отпусти, чтобы добавить</div></div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <!-- Add -->
+  <dialog id="dlg-add" class="dlg" aria-labelledby="add-title">
+    <form method="dialog" class="dlg-body" id="add-form">
+      <h2 id="add-title" class="dlg-title">Добавить magnet</h2>
+      <label class="field">
+        <span class="field-label">Magnet-ссылка или хеш</span>
+        <textarea id="add-text" rows="3" placeholder="magnet:?xt=urn:btih:…" spellcheck="false"></textarea>
+      </label>
+      <p class="field-error" id="add-error" hidden></p>
+      <div class="dlg-actions">
+        <span class="grow"></span>
+        <button type="button" class="btn" id="add-cancel">Отмена</button>
+        <button type="submit" class="btn btn-primary" id="add-submit">Добавить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- File picker -->
+  <dialog id="dlg-pick" class="dlg dlg-wide" aria-labelledby="pick-name">
+    <div class="dlg-body">
+      <div class="eyebrow">Что скачать</div>
+      <h2 class="dlg-title dlg-name" id="pick-name"></h2>
+      <div class="pick-tools">
+        <span class="mono muted" id="pick-summary"></span>
+        <span class="grow"></span>
+        <button class="link" id="pick-all">Выбрать все</button>
+        <button class="link" id="pick-none">Снять все</button>
+      </div>
+      <ul class="files" id="pick-files"></ul>
+      <div class="dest">
+        <span class="eyebrow">Сохранить в</span>
+        <span class="mono dest-path" id="pick-dir"></span>
+        <button class="link" id="pick-dir-change">Изменить</button>
+      </div>
+      <div class="dlg-actions">
+        <span class="grow"></span>
+        <button class="btn" id="pick-cancel">Отмена</button>
+        <button class="btn btn-primary" id="pick-go" autofocus>Скачать</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Settings -->
+  <dialog id="dlg-settings" class="dlg" aria-labelledby="set-title">
+    <div class="dlg-body">
+      <h2 class="dlg-title" id="set-title">Настройки</h2>
+      <div class="setting">
+        <div><div class="setting-name">Папка загрузок</div><div class="mono muted dest-path" id="set-dir"></div></div>
+        <button class="link" id="set-dir-change">Изменить</button>
+      </div>
+      <div class="setting">
+        <label class="setting-name" for="set-down">Лимит скачивания</label>
+        <span class="num"><input id="set-down" type="number" min="0" step="100" inputmode="numeric"><span class="muted">КБ/с</span></span>
+      </div>
+      <div class="setting">
+        <label class="setting-name" for="set-up">Лимит отдачи</label>
+        <span class="num"><input id="set-up" type="number" min="0" step="100" inputmode="numeric"><span class="muted">КБ/с</span></span>
+      </div>
+      <p class="setting-note">0 — без ограничений.</p>
+      <div class="setting">
+        <label class="setting-name" for="set-active">Одновременно скачивается</label>
+        <span class="num"><input id="set-active" type="number" min="1" max="20" inputmode="numeric"></span>
+      </div>
+      <label class="setting switch"><span class="setting-name">Раздавать после загрузки</span><input type="checkbox" id="set-seed" role="switch"></label>
+      <label class="setting switch"><span class="setting-name">Сворачивать в трей при закрытии</span><input type="checkbox" id="set-tray" role="switch"></label>
+      <label class="setting switch"><span class="setting-name">Запускать вместе с Windows</span><input type="checkbox" id="set-login" role="switch"></label>
+      <label class="setting switch"><span class="setting-name">Проверять обновления автоматически</span><input type="checkbox" id="set-update" role="switch"></label>
+      <div class="setting">
+        <div><div class="setting-name">Обновления</div><div class="muted small" id="update-status"></div></div>
+        <button class="link" id="update-check">Проверить</button>
+      </div>
+      <div class="setting">
+        <div><div class="setting-name">Программа по умолчанию</div><div class="muted small">Для .torrent-файлов и magnet-ссылок</div></div>
+        <button class="link" id="set-handler">Настроить</button>
+      </div>
+      <div class="dlg-actions"><span class="grow"></span><button class="btn btn-primary" id="set-close">Готово</button></div>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

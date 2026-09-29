@@ -1,0 +1,684 @@
+'use strict'
+
+const fs = require('node:fs')
+const path = require('node:path')
+const { EventEmitter } = require('node:events')
+const { planQueue, moveId } = require('./queue')
+const { pieceMap, bitfieldReader } = require('./pieces')
+const { MAX_TORRENT_FILE_BYTES, MAX_TORRENT_FILES, isLocalAbsolutePath } = require('./input')
+
+const TICK_MS = 1000
+const BITFIELD_SAVE_MS = 30_000
+const STOP_TIMEOUT_MS = 3000
+const MAP_BUCKETS = 360
+const BIG_TORRENT_PIECES = 50_000
+const KB = 1024
+const ID_RE = /^[a-f0-9]{40}$/
+
+const DEFAULT_SETTINGS = Object.freeze({
+  downloadDir: '',
+  downLimitKB: 0,
+  upLimitKB: 0,
+  maxActive: 3,
+  seedAfterDone: true,
+  closeToTray: true,
+  launchAtLogin: false,
+  autoUpdate: true
+})
+
+const clampInt = (value, min, max) => Math.min(max, Math.max(min, Math.floor(Number(value)) || 0))
+
+/** Merge untrusted settings (UI or state.json) into a valid settings object. */
+function mergeSettings (base, patch) {
+  const next = { ...base }
+  if (isLocalAbsolutePath(patch.downloadDir)) next.downloadDir = path.resolve(patch.downloadDir)
+  for (const key of ['downLimitKB', 'upLimitKB']) {
+    if (patch[key] !== undefined) next[key] = clampInt(patch[key], 0, 10_000_000)
+  }
+  if (patch.maxActive !== undefined) next.maxActive = clampInt(patch.maxActive, 1, 20)
+  for (const key of ['seedAfterDone', 'closeToTray', 'launchAtLogin', 'autoUpdate']) {
+    if (typeof patch[key] === 'boolean') next[key] = patch[key]
+  }
+  return next
+}
+
+const TRACKER_RE = /^(https?|udp|wss?):\/\/[^\s]{1,300}$/i
+const MAX_TRACKERS = 50
+
+/** Tracker URLs only, capped: they come from untrusted torrents and are shown in the UI. */
+function cleanTrackers (list) {
+  if (!Array.isArray(list)) return []
+  return [...new Set(list.filter((u) => typeof u === 'string' && TRACKER_RE.test(u)))].slice(0, MAX_TRACKERS)
+}
+
+/** A record read from state.json, or null when it is not usable. */
+function cleanRecord (r, fallbackDir) {
+  if (!r || typeof r.id !== 'string' || !ID_RE.test(r.id)) return null
+  const files = Array.isArray(r.files) && r.files.length <= MAX_TORRENT_FILES &&
+    r.files.every((f) => f && typeof f.path === 'string' && Number.isFinite(f.length))
+    ? r.files.map((f) => ({ path: f.path, length: f.length }))
+    : null
+  const selected = files && Array.isArray(r.selected) && r.selected.length === files.length ? r.selected.map(Boolean) : null
+  return {
+    id: r.id,
+    name: typeof r.name === 'string' && r.name ? r.name : r.id,
+    path: isLocalAbsolutePath(r.path) ? path.resolve(r.path) : fallbackDir,
+    magnet: typeof r.magnet === 'string' ? r.magnet : null,
+    length: Number.isFinite(r.length) ? r.length : 0,
+    pieceLength: Number.isFinite(r.pieceLength) ? r.pieceLength : 0,
+    pieceCount: Number.isFinite(r.pieceCount) ? r.pieceCount : 0,
+    files,
+    selected,
+    bitfield: typeof r.bitfield === 'string' ? r.bitfield : null,
+    fp: Array.isArray(r.fp) && files && r.fp.length === files.length ? r.fp.map(Number) : null,
+    trackers: cleanTrackers(r.trackers),
+    progressBytes: Number.isFinite(r.progressBytes) ? r.progressBytes : 0,
+    paused: Boolean(r.paused),
+    done: Boolean(r.done),
+    createdAt: Number.isFinite(r.createdAt) ? r.createdAt : Date.now(),
+    order: Number.isFinite(r.order) ? r.order : 0
+  }
+}
+
+/**
+ * Owns every torrent. An "entry" is our record of a torrent; `entry.live` is the
+ * WebTorrent object while it is running. Stopped torrents keep their bitfield, so
+ * resuming does not re-hash the files.
+ *
+ * Emits: 'state' (snapshot), 'completed' ({name})
+ */
+class Engine extends EventEmitter {
+  /**
+   * @param {{ stateStore: import('./store').JsonStore, torrentsDir: string,
+   *           defaultDir: string, trash: (p: string) => Promise<void>, clientOptions?: object }} deps
+   */
+  constructor ({ stateStore, torrentsDir, defaultDir, trash, clientOptions }) {
+    super()
+    this.stateStore = stateStore
+    this.torrentsDir = torrentsDir
+    this.trash = trash
+    // TCP only (uTP needs a native module that is fragile to package). No web seeds:
+    // they would let an untrusted magnet make this app request arbitrary URLs.
+    this.clientOptions = clientOptions || { natUpnp: true, natPmp: true, lsd: true, utp: false, webSeeds: false }
+    this.entries = new Map()
+    this.settings = { ...DEFAULT_SETTINGS, downloadDir: defaultDir }
+    this.client = null
+    this.parseTorrent = null
+    this.tickTimer = null
+    this.lastBitfieldSave = 0
+  }
+
+  async init () {
+    const [{ default: WebTorrent }, { default: parseTorrent }] = await Promise.all([
+      import('webtorrent'), import('parse-torrent')
+    ])
+    this.parseTorrent = parseTorrent
+    this.client = new WebTorrent(this.clientOptions)
+    this.client.on('error', (err) => console.error('[client]', err.message))
+
+    const saved = this.stateStore.load()
+    if (saved.settings && typeof saved.settings === 'object') this.settings = mergeSettings(this.settings, saved.settings)
+    for (const raw of Array.isArray(saved.torrents) ? saved.torrents : []) {
+      const record = cleanRecord(raw, this.settings.downloadDir)
+      if (record) this.entries.set(record.id, this._fromRecord(record))
+    }
+    this._applyLimits()
+    this._reconcile()
+    this.tickTimer = setInterval(() => this._tick(), TICK_MS)
+    this._tick()
+  }
+
+  // ---------------------------------------------------------------- adding
+
+  /** @param {{kind: 'magnet', uri: string} | {kind: 'file', path: string}} input */
+  async add (input) {
+    let source
+    if (input.kind === 'file') {
+      if (!isLocalAbsolutePath(input.path)) throw new Error('bad-file')
+      const stat = await fs.promises.stat(input.path)
+      if (!stat.isFile() || stat.size > MAX_TORRENT_FILE_BYTES) throw new Error('bad-file')
+      source = await fs.promises.readFile(input.path)
+    } else {
+      source = input.uri
+    }
+    const parsed = await this.parseTorrent(source)
+    const id = parsed.infoHash
+    if (this.entries.has(id)) return { id, duplicate: true }
+    if (parsed.files && parsed.files.length > MAX_TORRENT_FILES) throw new Error('too-many-files')
+
+    const entry = {
+      ...this._fromRecord({
+        id,
+        name: parsed.name || id,
+        path: this.settings.downloadDir,
+        magnet: input.kind === 'magnet' ? input.uri : null,
+        length: parsed.length || 0,
+        pieceLength: parsed.pieceLength || 0,
+        pieceCount: parsed.pieces ? parsed.pieces.length : 0,
+        trackers: cleanTrackers(parsed.announce),
+        createdAt: Date.now()
+      }),
+      stage: 'metadata',
+      torrentBuffer: input.kind === 'file' ? source : null
+    }
+    this.entries.set(id, entry)
+    this._start(entry)
+    this._publish()
+    return { id, duplicate: false }
+  }
+
+  /** Confirm a torrent that is waiting in the file picker. */
+  async confirm (id, { selected, dir }) {
+    const entry = this.entries.get(id)
+    if (!entry || entry.stage !== 'choosing' || entry.removing) throw new Error('not-choosing')
+    if (!Array.isArray(selected) || selected.length !== entry.files.length) throw new Error('bad-selection')
+    if (!selected.some(Boolean)) throw new Error('nothing-selected')
+
+    if (dir && path.resolve(dir) !== path.resolve(entry.path)) {
+      this._assertDirectory(dir)
+      const previous = entry.path
+      await this._stop(entry, { keepBitfield: false }) // restart at the new folder; nothing is downloaded yet
+      if (entry.removing || this.entries.get(id) !== entry) return
+      await this._pruneEmptyDirs(entry, previous)
+      entry.path = path.resolve(dir)
+    }
+    entry.selected = selected.map(Boolean)
+    entry.order = this._nextOrder()
+    entry.stage = 'ready'
+    entry.done = false
+    entry.cache = null
+    this._persistTorrentFile(entry)
+    if (entry.live && entry.live.ready) {
+      this._applySelection(entry)
+      this._checkSelectionDone(entry)
+    }
+    this._reconcile()
+    this._changed()
+  }
+
+  // -------------------------------------------------------------- controls
+
+  pause (id) { this._patch(id, { paused: true }) }
+  resume (id) { this._patch(id, { paused: false, error: null }) }
+
+  pauseAll () { for (const e of this._ready()) e.paused = true; this._reconcile(); this._changed() }
+  resumeAll () { for (const e of this._ready()) { e.paused = false; e.error = null }; this._reconcile(); this._changed() }
+
+  move (id, where) {
+    const ids = this._ready().sort((a, b) => a.order - b.order).map((e) => e.id)
+    moveId(ids, id, where).forEach((eid, i) => { this.entries.get(eid).order = i })
+    this._reconcile()
+    this._changed()
+  }
+
+  async remove (id, { trash = false } = {}) {
+    const entry = this.entries.get(id)
+    if (!entry || entry.removing) return
+    const wasReady = entry.stage === 'ready'
+    entry.removing = true
+    this._publish()
+    await this._stop(entry, { keepBitfield: false })
+    this.entries.delete(id)
+    fs.rm(this._torrentFile(id), { force: true }, () => {})
+    if (trash && wasReady) await this._trashContent(entry)
+    else if (!wasReady) await this._pruneEmptyDirs(entry, entry.path)
+    this._reconcile()
+    this._changed()
+  }
+
+  setSelection (id, selected) {
+    const entry = this.entries.get(id)
+    if (!entry || !entry.files || !Array.isArray(selected) || selected.length !== entry.files.length) throw new Error('bad-selection')
+    if (!selected.some(Boolean)) throw new Error('nothing-selected')
+    entry.selected = selected.map(Boolean)
+    entry.cache = null
+    if (entry.stage === 'ready') {
+      if (entry.live && entry.live.ready) {
+        this._applySelection(entry)
+        entry.done = this._allWantedDone(entry, entry.live)
+        this._checkSelectionDone(entry)
+      } else {
+        entry.done = Boolean(entry.done && entry.fp && entry.files.every((f, i) => !entry.selected[i] || entry.fp[i] >= 1))
+      }
+      this._reconcile()
+      this._changed()
+    } else if (entry.live && entry.live.ready) {
+      this._applySelection(entry)
+    }
+    this._publish()
+  }
+
+  setSettings (patch) {
+    if (patch.downloadDir !== undefined) this._assertDirectory(patch.downloadDir)
+    this.settings = mergeSettings(this.settings, patch)
+    this._applyLimits()
+    this._reconcile()
+    this._changed()
+  }
+
+  files (id) {
+    const entry = this.entries.get(id)
+    if (!entry || !entry.files) return []
+    const ready = entry.live && entry.live.ready
+    return entry.files.map((file, i) => ({
+      index: i,
+      path: file.path,
+      length: file.length,
+      selected: entry.selected ? entry.selected[i] : true,
+      progress: ready ? entry.live.files[i].progress : (entry.fp ? entry.fp[i] || 0 : 0)
+    }))
+  }
+
+  /** Details that do not change every second: shown once when a torrent is selected. */
+  info (id) {
+    const entry = this.entries.get(id)
+    if (!entry) return null
+    return { id, trackers: entry.trackers, addedAt: entry.createdAt, dir: entry.path, pieceCount: entry.pieceCount, pieceLength: entry.pieceLength }
+  }
+
+  contentPath (id) {
+    const entry = this.entries.get(id)
+    return entry ? this._contentPath(entry) : null
+  }
+
+  // -------------------------------------------------------------- lifecycle
+
+  async shutdown () {
+    if (this.isShutDown) return
+    this.isShutDown = true
+    clearInterval(this.tickTimer)
+    for (const entry of this.entries.values()) this._captureProgress(entry)
+    this.stateStore.saveSoon(() => this._serialize())
+    this.stateStore.flush()
+    if (this.client) await new Promise((resolve) => this.client.destroy(() => resolve()))
+  }
+
+  // ---------------------------------------------------------------- internals
+
+  _ready () { return [...this.entries.values()].filter((e) => e.stage === 'ready' && !e.removing) }
+  _nextOrder () { return this._ready().reduce((max, e) => Math.max(max, e.order), -1) + 1 }
+  _torrentFile (id) { return path.join(this.torrentsDir, `${id}.torrent`) }
+
+  _assertDirectory (dir) {
+    if (!isLocalAbsolutePath(dir)) throw new Error('bad-dir')
+    let stat
+    try { stat = fs.statSync(dir) } catch { throw new Error('bad-dir') }
+    if (!stat.isDirectory()) throw new Error('bad-dir')
+  }
+
+  _fromRecord (r) {
+    return {
+      id: r.id,
+      name: r.name,
+      path: r.path,
+      magnet: r.magnet || null,
+      length: r.length || 0,
+      pieceLength: r.pieceLength || 0,
+      pieceCount: r.pieceCount || 0,
+      files: r.files || null,
+      selected: r.selected || null,
+      bitfield: r.bitfield || null,
+      fp: r.fp || null,
+      trackers: r.trackers || [],
+      progressBytes: r.progressBytes || 0,
+      paused: Boolean(r.paused),
+      done: Boolean(r.done),
+      createdAt: r.createdAt || Date.now(),
+      order: Number.isFinite(r.order) ? r.order : 0,
+      stage: 'ready',
+      live: null,
+      applied: null,
+      stopping: null,
+      removing: false,
+      cache: null,
+      error: null,
+      torrentBuffer: null
+    }
+  }
+
+  _serialize () {
+    const torrents = this._ready().map((e) => ({
+      id: e.id, name: e.name, path: e.path, magnet: e.magnet, length: e.length,
+      pieceLength: e.pieceLength, pieceCount: e.pieceCount, files: e.files, selected: e.selected,
+      bitfield: e.bitfield, fp: e.fp, trackers: e.trackers, progressBytes: e.progressBytes, paused: e.paused,
+      done: e.done, createdAt: e.createdAt, order: e.order
+    }))
+    return { version: 1, settings: this.settings, torrents }
+  }
+
+  _changed () {
+    this.stateStore.saveSoon(() => this._serialize())
+    this._publish()
+  }
+
+  _patch (id, fields) {
+    const entry = this.entries.get(id)
+    if (!entry || entry.stage !== 'ready' || entry.removing) return
+    Object.assign(entry, fields)
+    this._reconcile()
+    this._changed()
+  }
+
+  _applyLimits () {
+    if (!this.client) return
+    const { downLimitKB, upLimitKB } = this.settings
+    this.client.throttleDownload(downLimitKB > 0 ? downLimitKB * KB : -1)
+    this.client.throttleUpload(upLimitKB > 0 ? upLimitKB * KB : -1)
+  }
+
+  /** Start or stop torrents so the running set matches the queue plan. */
+  _reconcile () {
+    const ready = this._ready()
+    // A torrent in error must not hold a queue slot.
+    const run = planQueue(ready.filter((e) => !e.error), {
+      maxActive: this.settings.maxActive, seed: this.settings.seedAfterDone
+    })
+    for (const entry of ready) {
+      if (entry.stopping) continue // reconciled again when the stop settles
+      const shouldRun = run.has(entry.id)
+      if (shouldRun && !entry.live) this._start(entry)
+      else if (!shouldRun && entry.live) this._stop(entry, { keepBitfield: true })
+    }
+  }
+
+  _start (entry) {
+    if (entry.stopping || entry.live) return
+    let source = entry.torrentBuffer
+    if (!source) {
+      try { source = fs.readFileSync(this._torrentFile(entry.id)) } catch { source = entry.magnet }
+    }
+    if (!source) { entry.error = 'no-source'; return }
+
+    const opts = { path: entry.path, deselect: true, strategy: 'rarest' }
+    const resumeBitfield = this._resumeBitfield(entry)
+    if (resumeBitfield) opts.bitfield = resumeBitfield
+
+    let torrent
+    try {
+      torrent = this.client.add(source, opts)
+    } catch (err) {
+      entry.error = err.message
+      return
+    }
+    entry.live = torrent
+    entry.applied = null
+    entry.cache = null
+    torrent.on('metadata', () => { if (entry.live === torrent) this._onMetadata(entry, torrent) })
+    torrent.on('ready', () => { if (entry.live === torrent) this._onReady(entry) })
+    torrent.on('done', () => { if (entry.live === torrent) this._checkSelectionDone(entry) })
+    torrent.on('error', (err) => {
+      if (entry.live !== torrent) return
+      entry.live = null
+      entry.error = err.message
+      this._reconcile()
+      this._changed()
+    })
+  }
+
+  /**
+   * The saved bitfield lets us skip re-hashing, but only if the files it describes are
+   * still on disk. Otherwise drop it and let WebTorrent verify what is really there.
+   */
+  _resumeBitfield (entry) {
+    if (!entry.bitfield) return null
+    let buffer = null
+    try { buffer = Buffer.from(entry.bitfield, 'base64') } catch { /* fall through */ }
+    const filesPresent = !entry.files || entry.files.every((file, i) => {
+      if (!entry.fp || !(entry.fp[i] > 0)) return true
+      return fs.existsSync(path.join(entry.path, file.path))
+    })
+    if (buffer && filesPresent) return buffer
+    entry.bitfield = null
+    entry.fp = null
+    entry.progressBytes = 0
+    entry.done = false
+    return null
+  }
+
+  /** Stop the live torrent (keeps the entry). Safe to call twice; resolves when it is really gone. */
+  _stop (entry, { keepBitfield }) {
+    if (entry.stopping) return entry.stopping
+    const torrent = entry.live
+    if (!torrent) return Promise.resolve()
+    if (keepBitfield) this._captureProgress(entry)
+    else { entry.bitfield = null; entry.fp = null }
+    entry.live = null
+    entry.applied = null
+    entry.cache = null
+
+    const closed = new Promise((resolve) => {
+      const timer = setTimeout(resolve, STOP_TIMEOUT_MS)
+      try {
+        torrent.destroy({ destroyStore: false }, () => { clearTimeout(timer); resolve() })
+      } catch { clearTimeout(timer); resolve() }
+    })
+    entry.stopping = closed.then(() => {
+      entry.stopping = null
+      if (!entry.removing && this.entries.get(entry.id) === entry) this._reconcile()
+    })
+    return entry.stopping
+  }
+
+  _onMetadata (entry, torrent) {
+    if (torrent.files.length > MAX_TORRENT_FILES) {
+      entry.error = 'too-many-files'
+      this._stop(entry, { keepBitfield: false })
+      this._changed()
+      return
+    }
+    entry.name = torrent.name || entry.name
+    entry.length = torrent.length
+    entry.pieceLength = torrent.pieceLength
+    entry.pieceCount = torrent.pieces.length
+    entry.files = torrent.files.map((f) => ({ path: f.path, length: f.length }))
+    entry.trackers = cleanTrackers(torrent.announce)
+    if (!entry.torrentBuffer && torrent.torrentFile) entry.torrentBuffer = Buffer.from(torrent.torrentFile)
+    if (entry.stage === 'metadata') entry.stage = 'choosing'
+    else this._persistTorrentFile(entry)
+    this._changed()
+  }
+
+  _onReady (entry) {
+    const torrent = entry.live
+    // WebTorrent's own 'done' means "every file", but we finish when the selected files are done.
+    torrent.files.forEach((file) => file.on('done', () => { if (entry.live === torrent) this._checkSelectionDone(entry) }))
+    if (entry.stage === 'ready') {
+      if (entry.done && !this._allWantedDone(entry, torrent)) entry.done = false
+      this._applySelection(entry)
+      this._checkSelectionDone(entry)
+    }
+    this._publish()
+  }
+
+  _allWantedDone (entry, torrent) {
+    return torrent.files.every((file, i) => (entry.selected && !entry.selected[i]) || file.done)
+  }
+
+  _checkSelectionDone (entry) {
+    const torrent = entry.live
+    if (entry.stage !== 'ready' || entry.done || !torrent || !torrent.ready) return
+    if (this._allWantedDone(entry, torrent)) this._onDone(entry)
+  }
+
+  _onDone (entry) {
+    if (entry.stage !== 'ready' || entry.done) return
+    entry.done = true
+    this._captureProgress(entry)
+    this.emit('completed', { name: entry.name })
+    this._reconcile()
+    this._changed()
+  }
+
+  _applySelection (entry) {
+    const torrent = entry.live
+    if (!torrent || !torrent.ready) return
+    // WebTorrent's deselect drops any selection overlapping the file, including a piece
+    // shared with a neighbour we still want. So: deselect everything we applied, then
+    // select what is wanted, in that order.
+    const applied = entry.applied || torrent.files.map(() => false)
+    const wanted = torrent.files.map((_, i) => !entry.selected || entry.selected[i])
+    if (entry.applied && applied.every((v, i) => v === wanted[i])) return
+    torrent.files.forEach((file, i) => { if (applied[i]) file.deselect() })
+    torrent.files.forEach((file, i) => { if (wanted[i]) file.select() })
+    entry.applied = wanted
+  }
+
+  _persistTorrentFile (entry) {
+    if (!entry.torrentBuffer) return
+    fs.mkdir(this.torrentsDir, { recursive: true }, () => {
+      if (this.entries.get(entry.id) !== entry || entry.removing) return
+      fs.writeFile(this._torrentFile(entry.id), entry.torrentBuffer, (err) => {
+        if (err) console.error('[torrent-file] save failed:', err.message)
+      })
+    })
+  }
+
+  /** Copy live progress into the record so it survives stopping and restarts. */
+  _captureProgress (entry) {
+    const torrent = entry.live
+    if (!torrent || !torrent.ready || !torrent.bitfield) return
+    entry.bitfield = Buffer.from(torrent.bitfield.buffer).toString('base64')
+    // floor, so a file that is 99.96% done is never stored as complete
+    entry.fp = torrent.files.map((f) => Math.floor(f.progress * 1000) / 1000)
+    entry.progressBytes = this._selectedBytes(entry, torrent)
+  }
+
+  _selectedBytes (entry, torrent) {
+    let bytes = 0
+    torrent.files.forEach((file, i) => { if (!entry.selected || entry.selected[i]) bytes += file.downloaded })
+    return bytes
+  }
+
+  _selectedLength (entry) {
+    if (!entry.files) return entry.length
+    return entry.files.reduce((sum, f, i) => sum + (!entry.selected || entry.selected[i] ? f.length : 0), 0)
+  }
+
+  _contentPath (entry) {
+    const root = path.resolve(entry.path)
+    const target = path.resolve(root, entry.name)
+    if (!entry.name || target === root || !target.startsWith(root + path.sep)) return null
+    return target
+  }
+
+  /**
+   * Move this torrent's own files to the Recycle Bin. Only paths listed in the torrent are
+   * touched (never a whole folder that merely shares the torrent's name), then empty
+   * folders left behind are removed.
+   */
+  async _trashContent (entry) {
+    const root = path.resolve(entry.path)
+    const files = (entry.files || []).map((f) => path.resolve(root, f.path)).filter((p) => p.startsWith(root + path.sep))
+    for (const file of files) {
+      if (!fs.existsSync(file)) continue
+      try { await this.trash(file) } catch (err) { console.error('[remove] trash failed:', err.message) }
+    }
+    const dirs = new Set()
+    for (const file of files) {
+      for (let d = path.dirname(file); d.startsWith(root + path.sep); d = path.dirname(d)) dirs.add(d)
+    }
+    for (const dir of [...dirs].sort((a, b) => b.length - a.length)) {
+      try { await fs.promises.rmdir(dir) } catch { /* not empty or already gone: leave it */ }
+    }
+  }
+
+  /** Remove the empty folders WebTorrent creates up front (never a folder that has anything in it). */
+  async _pruneEmptyDirs (entry, root) {
+    const base = path.resolve(root)
+    const dirs = new Set()
+    for (const file of entry.files || []) {
+      for (let d = path.dirname(path.resolve(base, file.path)); d.startsWith(base + path.sep); d = path.dirname(d)) dirs.add(d)
+    }
+    if (entry.name) dirs.add(path.resolve(base, entry.name))
+    for (const dir of [...dirs].filter((d) => d.startsWith(base + path.sep)).sort((a, b) => b.length - a.length)) {
+      try { await fs.promises.rmdir(dir) } catch { /* not empty or already gone: leave it */ }
+    }
+  }
+
+  // ---------------------------------------------------------------- snapshots
+
+  _tick () {
+    const now = Date.now()
+    if (now - this.lastBitfieldSave > BITFIELD_SAVE_MS) {
+      this.lastBitfieldSave = now
+      let any = false
+      for (const entry of this._ready()) {
+        if (entry.live && entry.live.ready) { this._captureProgress(entry); any = true }
+      }
+      if (any) this.stateStore.saveSoon(() => this._serialize())
+    }
+    for (const entry of this._ready()) this._checkSelectionDone(entry)
+    this._publish()
+  }
+
+  _publish () {
+    this.emit('state', this.snapshot())
+  }
+
+  snapshot () {
+    const torrents = [...this.entries.values()]
+      .filter((e) => !e.removing)
+      .sort((a, b) => (a.stage === 'ready') - (b.stage === 'ready') || a.order - b.order || a.createdAt - b.createdAt)
+      .map((entry) => this._describe(entry))
+    return {
+      torrents,
+      settings: this.settings,
+      speed: this.client ? { down: this.client.downloadSpeed, up: this.client.uploadSpeed } : { down: 0, up: 0 }
+    }
+  }
+
+  /** Bytes done and the piece map are O(pieces): recompute at most once per TTL, less often for huge torrents. */
+  _progressCache (entry, isReady) {
+    const ttl = entry.pieceCount > BIG_TORRENT_PIECES ? 5000 : 900
+    const now = Date.now()
+    if (entry.cache && now - entry.cache.at < ttl) return entry.cache
+    const live = entry.live
+    const has = isReady && live.bitfield ? (i) => live.bitfield.get(i) : bitfieldReader(entry.bitfield)
+    entry.cache = {
+      at: now,
+      got: isReady ? this._selectedBytes(entry, live) : entry.progressBytes,
+      pieces: pieceMap(has, entry.pieceCount, MAP_BUCKETS)
+    }
+    return entry.cache
+  }
+
+  _describe (entry) {
+    const live = entry.live
+    const isReady = Boolean(live && live.ready)
+    const size = this._selectedLength(entry)
+    const { got, pieces } = this._progressCache(entry, isReady)
+
+    return {
+      id: entry.id,
+      name: entry.name,
+      state: this._state(entry, isReady),
+      error: entry.error,
+      size,
+      total: entry.length,
+      progress: entry.done ? 1 : size ? Math.min(1, got / size) : 0,
+      down: live ? live.downloadSpeed : 0,
+      up: live ? live.uploadSpeed : 0,
+      peers: live ? live.numPeers : 0,
+      eta: isReady && !entry.done && live.downloadSpeed > 0 ? Math.max(0, (size - got) / live.downloadSpeed) : null,
+      uploaded: live ? live.uploaded : 0,
+      dir: entry.path,
+      fileCount: entry.files ? entry.files.length : 0,
+      pieces,
+      paused: entry.paused,
+      files: entry.stage === 'choosing' ? this.files(entry.id) : undefined
+    }
+  }
+
+  _state (entry, isReady) {
+    if (entry.error) return 'error'
+    if (entry.stage === 'metadata') return 'metadata'
+    if (entry.stage === 'choosing') return 'choosing'
+    if (entry.paused) return 'paused'
+    if (!entry.live) return entry.done ? 'done' : 'queued'
+    if (!isReady) return 'checking'
+    if (entry.done) return 'seeding'
+    return entry.live.numPeers === 0 ? 'connecting' : 'downloading'
+  }
+}
+
+module.exports = { Engine, DEFAULT_SETTINGS, mergeSettings, cleanRecord, cleanTrackers }
