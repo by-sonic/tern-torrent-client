@@ -7,7 +7,8 @@ const { planQueue, moveId } = require('./queue')
 const { pieceMap, bitfieldReader } = require('./pieces')
 const { MAX_TORRENT_FILE_BYTES, MAX_TORRENT_FILES, isLocalAbsolutePath } = require('./input')
 const { loadSparseStore } = require('./sparse-store')
-const { torrentOptions, dropRarityMap } = require('./torrent-tuning')
+const { torrentOptions, dropRarityMap, installTorrentOptimizations } = require('./torrent-tuning')
+const { measureTorrentProgress } = require('./progress')
 
 const TICK_MS = 1000 // while a window is showing the list
 const BACKGROUND_TICK_MS = 5000 // tray only: nothing to draw, so wake up rarely and do almost no work
@@ -283,13 +284,14 @@ class Engine extends EventEmitter {
   files (id) {
     const entry = this.entries.get(id)
     if (!entry || !entry.files) return []
-    const ready = entry.live && entry.live.ready
+    const ready = Boolean(entry.live && entry.live.ready)
+    const progress = this._progressCache(entry, ready)
     return entry.files.map((file, i) => ({
       index: i,
       path: file.path,
       length: file.length,
       selected: entry.selected ? entry.selected[i] : true,
-      progress: ready ? entry.live.files[i].progress : (entry.fp ? entry.fp[i] || 0 : 0)
+      progress: ready ? progress.files[i] : (entry.fp ? entry.fp[i] || 0 : 0)
     }))
   }
 
@@ -307,13 +309,17 @@ class Engine extends EventEmitter {
 
   // -------------------------------------------------------------- lifecycle
 
+  checkpoint () {
+    for (const entry of this.entries.values()) this._captureProgress(entry)
+    this.stateStore.saveSoon(() => this._serialize())
+    this.stateStore.flush()
+  }
+
   async shutdown () {
     if (this.isShutDown) return
     this.isShutDown = true
     clearTimeout(this.tickTimer)
-    for (const entry of this.entries.values()) this._captureProgress(entry)
-    this.stateStore.saveSoon(() => this._serialize())
-    this.stateStore.flush()
+    this.checkpoint()
     if (this.client) await new Promise((resolve) => this.client.destroy(() => resolve()))
   }
 
@@ -485,6 +491,7 @@ class Engine extends EventEmitter {
 
   _onMetadata (entry, torrent) {
     dropRarityMap(torrent)
+    installTorrentOptimizations(torrent)
     if (torrent.files.length > MAX_TORRENT_FILES) {
       entry.error = 'too-many-files'
       this._stop(entry, { keepBitfield: false })
@@ -529,9 +536,15 @@ class Engine extends EventEmitter {
     if (entry.stage !== 'ready' || entry.done) return
     entry.done = true
     this._captureProgress(entry)
+    // WebTorrent emits file 'done' in the middle of its completion routine.
+    // Destroying it there (seeding disabled) leaves that routine using a null
+    // client. Let it finish before advancing the queue or closing its stores.
+    queueMicrotask(() => {
+      if (this.isShutDown) return
+      this._reconcile()
+      this._changed()
+    })
     this.emit('completed', { name: entry.name })
-    this._reconcile()
-    this._changed()
   }
 
   _applySelection (entry) {
@@ -563,15 +576,15 @@ class Engine extends EventEmitter {
     const torrent = entry.live
     if (!torrent || !torrent.ready || !torrent.bitfield) return
     entry.bitfield = Buffer.from(torrent.bitfield.buffer).toString('base64')
+    entry.cache = null
+    const progress = this._progressCache(entry, true)
     // floor, so a file that is 99.96% done is never stored as complete
-    entry.fp = torrent.files.map((f) => Math.floor(f.progress * 1000) / 1000)
-    entry.progressBytes = this._selectedBytes(entry, torrent)
+    entry.fp = progress.files.map((p) => Math.floor(p * 1000) / 1000)
+    entry.progressBytes = progress.got
   }
 
   _selectedBytes (entry, torrent) {
-    let bytes = 0
-    torrent.files.forEach((file, i) => { if (!entry.selected || entry.selected[i]) bytes += file.downloaded })
-    return bytes
+    return measureTorrentProgress(torrent, MAP_BUCKETS).files.reduce((sum, bytes, i) => sum + (!entry.selected || entry.selected[i] ? bytes : 0), 0)
   }
 
   _selectedLength (entry) {
@@ -666,13 +679,15 @@ class Engine extends EventEmitter {
   _progressCache (entry, isReady) {
     const ttl = entry.pieceCount > BIG_TORRENT_PIECES ? 5000 : 900
     const now = Date.now()
-    if (entry.cache && now - entry.cache.at < ttl) return entry.cache
+    if (entry.cache && entry.cache.ready === isReady && now - entry.cache.at < ttl) return entry.cache
     const live = entry.live
-    const has = isReady && live.bitfield ? (i) => live.bitfield.get(i) : bitfieldReader(entry.bitfield)
+    const measured = isReady && live.bitfield ? measureTorrentProgress(live, MAP_BUCKETS) : null
     entry.cache = {
       at: now,
-      got: isReady ? this._selectedBytes(entry, live) : entry.progressBytes,
-      pieces: pieceMap(has, entry.pieceCount, MAP_BUCKETS)
+      ready: isReady,
+      got: measured ? measured.files.reduce((sum, bytes, i) => sum + (!entry.selected || entry.selected[i] ? bytes : 0), 0) : entry.progressBytes,
+      files: measured ? measured.files.map((bytes, i) => entry.files[i].length ? bytes / entry.files[i].length : 0) : entry.fp || [],
+      pieces: measured ? measured.pieces : pieceMap(bitfieldReader(entry.bitfield), entry.pieceCount, MAP_BUCKETS)
     }
     return entry.cache
   }

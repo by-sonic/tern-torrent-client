@@ -13,8 +13,7 @@ const path = require('node:path')
 const {
   app, BrowserWindow, Menu, Tray, Notification, dialog, ipcMain, nativeImage, nativeTheme, shell, session
 } = require('electron')
-const { Engine } = require('./engine')
-const { JsonStore } = require('./store')
+const { EngineService } = require('./engine-service')
 const { classifyInput, extractLaunchInputs } = require('./input')
 const { registerAsHandler } = require('./association')
 const { Updater } = require('./updater')
@@ -37,7 +36,7 @@ const QUIT_FALLBACK_MS = 10_000
 let win = null
 /** @type {Tray | null} */
 let tray = null
-/** @type {Engine | null} */
+/** @type {EngineService | null} */
 let engine = null
 /** @type {Updater | null} */
 let updater = null
@@ -80,9 +79,8 @@ async function start () {
   lockDownSession()
 
   const userData = app.getPath('userData')
-  engine = new Engine({
-    stateStore: new JsonStore(path.join(userData, 'state.json'), () => ({ torrents: [], settings: {} })),
-    torrentsDir: path.join(userData, 'torrents'),
+  engine = new EngineService({
+    userData,
     defaultDir: (!app.isPackaged && process.env.TERN_DOWNLOADS) || app.getPath('downloads'),
     trash: (target) => shell.trashItem(target)
   })
@@ -92,6 +90,10 @@ async function start () {
     updateTray({ down: state.speed.down, up: state.speed.up, active: state.torrents.filter((t) => t.state === 'downloading' || t.state === 'connecting').length })
   })
   engine.on('stats', updateTray) // window closed: only a few numbers for the tray tooltip
+  engine.on('failure', (err) => {
+    console.error('[engine-process]', err.message)
+    send('toast', { kind: 'error', key: 'engineUnavailable' })
+  })
   engine.on('completed', ({ name }) => {
     if (!Notification.isSupported()) return
     const note = new Notification({ title: 'Загрузка завершена', body: name, icon: ICON, silent: false })
@@ -209,8 +211,8 @@ function createTray () {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Открыть Tern', click: showWindow },
     { type: 'separator' },
-    { label: 'Приостановить всё', click: () => engine.pauseAll() },
-    { label: 'Продолжить всё', click: () => engine.resumeAll() },
+    { label: 'Приостановить всё', click: () => void engine.pauseAll().catch((err) => console.error('[pause]', err.message)) },
+    { label: 'Продолжить всё', click: () => void engine.resumeAll().catch((err) => console.error('[resume]', err.message)) },
     { type: 'separator' },
     { label: 'Выйти', click: quit }
   ]))
@@ -237,8 +239,7 @@ function stopEngine () {
   if (!engine) return Promise.resolve()
   if (!engine.stopping) {
     quitting = true
-    engine.isShuttingDown = true
-    engine.stopping = Promise.race([engine.shutdown(), new Promise((resolve) => setTimeout(resolve, 4000))])
+    engine.stopping = engine.shutdown()
       .catch((err) => console.error('[shutdown]', err))
   }
   return engine.stopping
@@ -348,24 +349,24 @@ function registerIpc () {
   handle('torrent:resume-all', () => engine.resumeAll())
   handle('torrent:move', (id, where) => {
     if (!isId(id) || !['up', 'down', 'top'].includes(where)) throw new Error('bad-args')
-    engine.move(id, where)
+    return engine.move(id, where)
   })
   handle('torrent:remove', (id, trash) => isId(id) && engine.remove(id, { trash: trash === true }))
   handle('torrent:files', (id) => (isId(id) ? engine.files(id) : []))
   handle('torrent:info', (id) => (isId(id) ? engine.info(id) : null))
   handle('torrent:select', (id, selected) => {
     if (!isId(id)) throw new Error('bad-args')
-    engine.setSelection(id, selected)
+    return engine.setSelection(id, selected)
   })
-  handle('torrent:reveal', (id) => {
-    const target = isId(id) ? engine.contentPath(id) : null
+  handle('torrent:reveal', async (id) => {
+    const target = isId(id) ? await engine.contentPath(id) : null
     if (!target) throw new Error('no-path')
     shell.showItemInFolder(target)
   })
-  handle('settings:set', (patch) => {
+  handle('settings:set', async (patch) => {
     if (!patch || typeof patch !== 'object') throw new Error('bad-args')
     if (patch.downloadDir !== undefined && !isAllowedDir(patch.downloadDir)) throw new Error('bad-dir')
-    engine.setSettings(patch)
+    await engine.setSettings(patch)
     updater.refresh()
     applyLoginItem(engine.settings.launchAtLogin)
   })

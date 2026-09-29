@@ -34,10 +34,11 @@ jobs:
       # Lifecycle scripts stay off for everything except the one package that needs them:
       # WebTorrent imports node-datachannel, which fetches its prebuilt native binary in an install script.
       - run: npm ci --ignore-scripts
-      - run: npm rebuild node-datachannel
+      - run: npm rebuild node-datachannel electron
       - name: Native module is present
         run: node -e "import('node-datachannel').then(() => console.log('node-datachannel OK'))"
       - run: npm test
+      - run: npm run test:electron
 
   publish:
     name: Build and publish the Windows installer
@@ -58,7 +59,7 @@ jobs:
       # Lifecycle scripts stay off for everything except the one package that needs them:
       # WebTorrent imports node-datachannel, which fetches its prebuilt native binary in an install script.
       - run: npm ci --ignore-scripts
-      - run: npm rebuild node-datachannel
+      - run: npm rebuild node-datachannel electron
       - name: Native module is present
         run: node -e "import('node-datachannel').then(() => console.log('node-datachannel OK'))"
 
@@ -88,6 +89,13 @@ jobs:
         run: |
           $native = Get-ChildItem dist/win-unpacked/resources/app.asar.unpacked -Recurse -Filter node_datachannel.node -ErrorAction SilentlyContinue
           if (-not $native) { throw 'node_datachannel.node is missing from the packaged app' }
+
+      - name: Torrent engine runs from the packaged archive
+        shell: pwsh
+        run: |
+          $env:TERN_SMOKE_APP_ROOT = (Resolve-Path dist/win-unpacked/resources/app.asar).Path
+          npx electron scripts/engine-smoke.js
+          if ($LASTEXITCODE -ne 0) { throw 'packaged engine smoke failed' }
 
       - name: Check the assets, write the notes, then publish
         shell: pwsh

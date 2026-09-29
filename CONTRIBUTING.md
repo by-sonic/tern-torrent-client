@@ -12,11 +12,15 @@ Open an [issue](https://github.com/by-sonic/tern-torrent-client/issues/new/choos
 git clone https://github.com/by-sonic/tern-torrent-client.git
 cd tern-torrent-client
 npm ci --ignore-scripts
+npm rebuild node-datachannel electron
 npm test
+npm run test:electron
 npm start
 ```
 
-Node.js 22 or newer. The app is Electron (main process in `src/main`, sandboxed preload in `src/preload`, plain-JS interface in `src/renderer`) on top of the WebTorrent engine.
+Node.js 22 or newer. The app is Electron (main process in `src/main`, sandboxed preload in `src/preload`, plain-JS interface in `src/renderer`) on top of the WebTorrent engine. `EngineService` runs the torrent engine in an Electron utility process so peer scheduling, hash checks and file I/O cannot block the window's event loop.
+
+WebTorrent is pinned to 3.0.21 because `torrent-tuning.js` wraps private scheduler/completion methods. Before upgrading it, review the upstream methods and rerun the integration tests, Electron smokes and `npm run bench:active`. See [performance measurements](docs/performance.md) for the bounded loopback benchmark and its limitations.
 
 Running the app while developing: set `TERN_USER_DATA` and `TERN_DOWNLOADS` to throw-away folders so you never touch your real profile or downloads. These hooks only work in an unpackaged build.
 

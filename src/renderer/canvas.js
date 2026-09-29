@@ -2,6 +2,8 @@
 // Live pieces use the logo's cyan-to-azure gradient; finished or idle ones go quiet.
 
 let colors = null
+let colorVersion = 0
+const painted = new WeakMap()
 export function refreshColors () {
   const css = getComputedStyle(document.documentElement)
   const get = (name) => css.getPropertyValue(name).trim()
@@ -9,13 +11,18 @@ export function refreshColors () {
     cyan: get('--cyan'), azure: get('--azure'), ice: get('--ice'),
     muted: get('--muted'), track: get('--track'), line: get('--line')
   }
+  colorVersion += 1
 }
 
-function fit (canvas) {
+function fit (canvas, content) {
   const dpr = window.devicePixelRatio || 1
   const w = canvas.clientWidth
   const h = canvas.clientHeight
   if (!w || !h) return null
+  const key = `${colorVersion}|${dpr}|${w}|${h}|${content}`
+  // State pushes often change rates without changing the piece picture. Resizes,
+  // display scale and theme changes still invalidate it automatically.
+  if (painted.get(canvas) === key && canvas.width === Math.round(w * dpr) && canvas.height === Math.round(h * dpr)) return null
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
     canvas.width = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
@@ -23,6 +30,7 @@ function fit (canvas) {
   const ctx = canvas.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, w, h)
+  painted.set(canvas, key)
   return { ctx, w, h }
 }
 
@@ -54,7 +62,7 @@ function sliceValue (pieces, i, count) {
  */
 export function drawPieceMap (canvas, pieces, mode, { tick = 3, gap = 2 } = {}) {
   if (!colors) refreshColors()
-  const size = fit(canvas)
+  const size = fit(canvas, `map|${tick}|${gap}|${mode}|${pieces}`)
   if (!size) return
   const { ctx, w, h } = size
   const step = tick + gap
@@ -79,7 +87,7 @@ export function drawPieceMap (canvas, pieces, mode, { tick = 3, gap = 2 } = {}) 
 /** The torrent as a square of tiles that light up as pieces arrive. */
 export function drawMosaic (canvas, pieces, mode) {
   if (!colors) refreshColors()
-  const size = fit(canvas)
+  const size = fit(canvas, `mosaic|${mode}|${pieces}`)
   if (!size) return
   const { ctx, w, h } = size
   const count = Math.max(1, pieces.length)
@@ -107,7 +115,7 @@ export function drawMosaic (canvas, pieces, mode) {
 /** Download speed over the last minute. */
 export function drawSpark (canvas, samples) {
   if (!colors) refreshColors()
-  const size = fit(canvas)
+  const size = fit(canvas, `spark|${samples.join(',')}`)
   if (!size) return
   const { ctx, w, h } = size
   ctx.fillStyle = colors.line

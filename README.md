@@ -80,12 +80,16 @@ Tern is a neutral tool, like a web browser. It does not host, index or recommend
 git clone https://github.com/by-sonic/tern-torrent-client.git
 cd tern-torrent-client
 npm ci --ignore-scripts
+npm rebuild node-datachannel electron
 npm test          # unit and integration tests, including a real two-client swarm
+npm run test:electron # isolated real Electron download/restart and renderer checks
 npm start         # run the app
 npm run dist      # build the Windows installer into dist/
 ```
 
 Node.js 22 or newer is required. `npm run screenshots` regenerates the images in `docs/`, and `npm run icons` regenerates the app icons from `assets/logo-source.png`.
+
+For active-download profiling, `npm run bench:active` uses a bounded loopback swarm without Internet discovery. The torrent engine runs in a separate process; [performance measurements](docs/performance.md) explain the optimizations, results and tradeoffs.
 
 Releases are built by GitHub Actions when a `v*` tag is pushed; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
