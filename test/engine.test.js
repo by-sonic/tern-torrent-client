@@ -161,6 +161,21 @@ test('removing with "delete files" trashes only the torrent\'s own files', async
   assert.equal(engine.client.torrents.length, 0)
 })
 
+test('torrents run sequentially, without the rarity map, on the sparse store', async (t) => {
+  const swarm = await makeSwarm(t)
+  const engine = await swarm.engine()
+  const { id, listed } = await addAndPick(swarm, engine)
+  const live = engine.entries.get(id).live
+  assert.equal(live.strategy, 'sequential')
+  assert.equal(live._rarityMap, null, 'the O(peers x pieces) rarity map is dropped')
+  const completed = new Promise((resolve) => engine.once('completed', resolve))
+  await engine.confirm(id, { selected: listed.map(() => true), dir: '' })
+  await withTimeout(completed, 'completed')
+  assert.equal(engine.entries.get(id).live._rarityMap, null, 'still dropped after the restart at the final folder')
+  assert.ok(fs.readFileSync(downloaded(swarm, 'a.bin')).equals(swarm.a))
+  assert.ok(fs.readFileSync(downloaded(swarm, 'b.bin')).equals(swarm.b))
+})
+
 test('confirm refuses folders that are not local absolute directories', async (t) => {
   const swarm = await makeSwarm(t)
   const engine = await swarm.engine()
