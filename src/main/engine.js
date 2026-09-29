@@ -9,7 +9,8 @@ const { MAX_TORRENT_FILE_BYTES, MAX_TORRENT_FILES, isLocalAbsolutePath } = requi
 const { loadSparseStore } = require('./sparse-store')
 const { torrentOptions, dropRarityMap } = require('./torrent-tuning')
 
-const TICK_MS = 1000
+const TICK_MS = 1000 // while a window is showing the list
+const BACKGROUND_TICK_MS = 5000 // tray only: nothing to draw, so wake up rarely and do almost no work
 const BITFIELD_SAVE_MS = 30_000
 const STOP_TIMEOUT_MS = 3000
 const MAP_BUCKETS = 360
@@ -92,9 +93,10 @@ function cleanRecord (r, fallbackDir) {
 class Engine extends EventEmitter {
   /**
    * @param {{ stateStore: import('./store').JsonStore, torrentsDir: string,
-   *           defaultDir: string, trash: (p: string) => Promise<void>, clientOptions?: object }} deps
+   *           defaultDir: string, trash: (p: string) => Promise<void>, clientOptions?: object,
+   *           tickMs?: number, backgroundTickMs?: number }} deps
    */
-  constructor ({ stateStore, torrentsDir, defaultDir, trash, clientOptions }) {
+  constructor ({ stateStore, torrentsDir, defaultDir, trash, clientOptions, tickMs = TICK_MS, backgroundTickMs = BACKGROUND_TICK_MS }) {
     super()
     this.stateStore = stateStore
     this.torrentsDir = torrentsDir
@@ -107,6 +109,10 @@ class Engine extends EventEmitter {
     this.client = null
     this.parseTorrent = null
     this.tickTimer = null
+    this.tickMs = tickMs
+    this.backgroundTickMs = backgroundTickMs
+    /** True while a visible window wants snapshots. Otherwise we build none and tick slowly. */
+    this.observed = false
     this.lastBitfieldSave = 0
   }
 
@@ -127,8 +133,23 @@ class Engine extends EventEmitter {
     }
     this._applyLimits()
     this._reconcile()
-    this.tickTimer = setInterval(() => this._tick(), TICK_MS)
-    this._tick()
+    this._scheduleTick(0)
+  }
+
+  /**
+   * Tell the engine whether anyone is looking. The list snapshot (per-torrent piece maps and byte
+   * counts) is the most expensive thing that runs while idle, so it is only built for a visible window.
+   */
+  setObserved (observed) {
+    if (this.observed === Boolean(observed)) return
+    this.observed = Boolean(observed)
+    this._scheduleTick(0)
+  }
+
+  _scheduleTick (delay = this.observed ? this.tickMs : this.backgroundTickMs) {
+    clearTimeout(this.tickTimer)
+    if (this.isShutDown) return
+    this.tickTimer = setTimeout(() => { this._tick(); this._scheduleTick() }, delay)
   }
 
   // ---------------------------------------------------------------- adding
@@ -289,7 +310,7 @@ class Engine extends EventEmitter {
   async shutdown () {
     if (this.isShutDown) return
     this.isShutDown = true
-    clearInterval(this.tickTimer)
+    clearTimeout(this.tickTimer)
     for (const entry of this.entries.values()) this._captureProgress(entry)
     this.stateStore.saveSoon(() => this._serialize())
     this.stateStore.flush()
@@ -612,11 +633,21 @@ class Engine extends EventEmitter {
       if (any) this.stateStore.saveSoon(() => this._serialize())
     }
     for (const entry of this._ready()) this._checkSelectionDone(entry)
-    this._publish()
+    if (this.observed) this._publish()
+    else this.emit('stats', this.stats())
   }
 
   _publish () {
-    this.emit('state', this.snapshot())
+    if (this.observed) this.emit('state', this.snapshot())
+  }
+
+  /** A few numbers for the tray tooltip: cheap, no per-torrent work. */
+  stats () {
+    let active = 0
+    for (const entry of this.entries.values()) {
+      if (entry.stage === 'ready' && entry.live && !entry.done && !entry.paused && !entry.removing) active += 1
+    }
+    return { down: this.client ? this.client.downloadSpeed : 0, up: this.client ? this.client.uploadSpeed : 0, active }
   }
 
   snapshot () {

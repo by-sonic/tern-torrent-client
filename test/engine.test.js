@@ -31,13 +31,14 @@ function withTimeout (promise, label, ms = 20_000) {
   return Promise.race([promise, new Promise((_resolve, reject) => setTimeout(() => reject(new Error(`timed out waiting for: ${label}`)), ms))])
 }
 
-async function makeEngine (root, { trash } = {}) {
+async function makeEngine (root, { trash, ...extra } = {}) {
   const engine = new Engine({
     stateStore: new JsonStore(path.join(root, 'state.json'), () => ({ torrents: [], settings: {} })),
     torrentsDir: path.join(root, 'torrents'),
     defaultDir: path.join(root, 'downloads'),
     trash: trash || (async () => {}),
-    clientOptions: OFFLINE
+    clientOptions: OFFLINE,
+    ...extra
   })
   fs.mkdirSync(path.join(root, 'downloads'), { recursive: true })
   await engine.init()
@@ -185,6 +186,37 @@ test('confirm refuses folders that are not local absolute directories', async (t
     await assert.rejects(engine.confirm(id, { selected: all, dir }), /bad-dir/, dir)
   }
   assert.equal(stateOf(engine, id).state, 'choosing')
+})
+
+test('snapshots are built only while a window watches; otherwise the engine ticks slowly and emits cheap stats', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tern-tick-'))
+  const engine = await makeEngine(root, { tickMs: 20, backgroundTickMs: 120 })
+  let states = 0
+  let stats = 0
+  engine.on('state', () => { states += 1 })
+  engine.on('stats', () => { stats += 1 })
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  try {
+    await sleep(500)
+    assert.equal(states, 0, 'no snapshot is built with nobody watching')
+    assert.ok(stats >= 2 && stats <= 6, `slow background ticks (got ${stats})`)
+    assert.deepEqual(Object.keys(engine.stats()).sort(), ['active', 'down', 'up'])
+
+    engine.setObserved(true)
+    await sleep(400)
+    assert.ok(states >= 8, `fast ticks while observed (got ${states})`)
+
+    engine.setObserved(false)
+    const frozen = states
+    await sleep(300)
+    assert.equal(states, frozen, 'snapshots stop as soon as the window is gone')
+  } finally {
+    await engine.shutdown()
+    const after = { states, stats }
+    await sleep(300)
+    assert.deepEqual({ states, stats }, after, 'no timer keeps running after shutdown')
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
 
 // --- queue behaviour, with magnet entries that never resolve metadata -------------------------

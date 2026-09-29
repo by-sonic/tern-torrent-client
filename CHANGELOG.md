@@ -4,6 +4,17 @@ All notable changes to Tern are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-09-29
+
+### Changed
+- **Much lighter in the background.** Closing the window to the tray now really closes it, so the renderer and its memory
+  are released; starting with Windows (`--hidden`) never creates a window at all. The list is only built and refreshed while
+  a visible window is watching; in the tray the app wakes up every 5 seconds instead of every second and updates just the
+  tooltip. The interface uses software rendering, which removes the GPU process and its idle work.
+- Measured with one seeding torrent (private working set, as Task Manager shows it): tray mode went from 118 MB to 61 MB and
+  from 1.77% to 0.13% of one CPU core; with the window open memory went from 105 MB to 84 MB.
+- The tray tooltip is only updated when its text changes.
+
 ## [1.0.1] - 2026-09-29
 
 ### Fixed
