@@ -31,6 +31,7 @@
 
 - **Magnet links and `.torrent` files.** Double-click a file or click a `magnet:` link; Tern can be your default torrent client.
 - **Choose what to download.** See every file in a torrent before it starts, untick what you don't need, change your mind later.
+- **Choose what to remove.** Confirm removal from the list, or also move downloaded files and the saved original `.torrent` to the Recycle Bin.
 - **A live piece map.** Every download draws the real shape of the torrent as pieces arrive, in the list and as a mosaic in the details panel.
 - **Speed limits and a queue.** Cap download and upload speed, choose how many torrents run at once, and reorder the queue.
 - **Automatic updates.** Tern checks and installs updates before starting the torrent engine. Additional background checks are optional.
@@ -59,6 +60,13 @@ Before opening the torrent window or starting the engine, Tern checks GitHub Rel
 Additional checks run every six hours while Tern is open. Disable these under **Settings → Check for updates in the background**. This setting does not disable the startup check. Background updates still use a banner and install on restart. Downloads are verified against the SHA-512 in the release's `latest.yml`.
 
 ## FAQ
+
+**What happens when I remove a torrent?** The confirmation checkbox starts unchecked: removing the torrent only removes it
+from the list. Check it to also move its downloaded files and original `.torrent` to the Windows Recycle Bin. Tern saves
+the source path when importing a regular `.torrent` file; older entries and magnet links may not have one. Reopening the same
+`.torrent` attaches its source to an existing entry. Missing files are ignored; changed sources, shared files and unsafe
+paths are preserved, and partial failures produce a warning. A source file that is itself a symbolic link is opened but
+not attached for deletion. Tern's internal metadata cache is cleaned up in either case.
 
 **Is Tern free?** Yes. It is MIT-licensed open source.
 
@@ -115,6 +123,7 @@ Issues and pull requests are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.
 
 - **Magnet-ссылки и `.torrent`-файлы** — двойной клик по файлу или клик по ссылке; Tern можно сделать клиентом по умолчанию.
 - **Выбор файлов** — перед загрузкой видно все файлы торрента, ненужные можно отключить, а позже передумать.
+- **Удаление с подтверждением** — можно убрать торрент из списка или отметить галочку и также отправить скачанные файлы и сохранённый исходный `.torrent` в корзину.
 - **Живая карта кусков** — полоса и мозаика показывают, как торрент собирается на самом деле.
 - **Лимиты скорости и очередь** — ограничение загрузки и отдачи, число одновременных загрузок, порядок очереди.
 - **Автообновление** — перед запуском Tern проверяет, скачивает и устанавливает новую версию на странице внутри обычного окна. При ошибке можно повторить попытку или запустить текущую версию. Дополнительные проверки в фоне отключаются в настройках.

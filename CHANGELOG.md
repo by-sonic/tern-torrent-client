@@ -4,6 +4,19 @@ All notable changes to Tern are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-30
+
+### Added
+- A removal dialog with an unchecked option to move downloaded files and the original `.torrent` file to the Recycle Bin.
+  Without the checkbox, removing a torrent preserves those files. Cancelling the dialog changes nothing.
+- Original `.torrent` paths are saved for new regular-file imports and survive restart. Older entries and magnet imports without
+  a saved source cannot locate an original file automatically; importing the same `.torrent` again attaches its source.
+
+### Fixed
+- File removal checks torrent metadata, exact paths and the original source's identity, and preserves shared files,
+  changed sources and files reached through symbolic links or junctions. Unrelated files in download folders remain.
+- Partial file-removal failures are reported instead of silently appearing successful. The torrent still leaves the list.
+
 ## [1.1.1] - 2026-09-30
 
 ### Fixed

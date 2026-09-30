@@ -31,3 +31,20 @@ export const ERRORS = {
 }
 
 export const ADD_TEXT_ERROR = 'Вставь magnet-ссылку (magnet:?xt=urn:btih:…) или 40-символьный хеш.'
+
+export const REMOVE_TEXT = {
+  confirm: 'Удалить',
+  busy: 'Удаление…',
+  removing: 'Удаляю торрент из списка…',
+  trashing: 'Останавливаю торрент и перемещаю файлы в корзину…',
+  failed: 'Не удалось удалить торрент. Попробуй ещё раз.'
+}
+
+export function removalWarning (result) {
+  if (!result?.removed) return ''
+  const messages = []
+  if (result.failed) messages.push(`Не удалось удалить файлов: ${result.failed}.`)
+  if (result.skipped) messages.push(`Оставлено файлов, которые нельзя безопасно удалить: ${result.skipped}.`)
+  if (result.sourceUnavailable) messages.push('Исходный .torrent не удалён: его путь не сохранён.')
+  return messages.length ? `Торрент удалён из списка. ${messages.join(' ')}` : ''
+}

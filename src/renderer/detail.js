@@ -14,7 +14,7 @@ const LARGE_PIECE_COUNT = 50_000
  * The panel under the table: mosaic, progress, stats and the Files / Trackers / Details tabs
  * for the selected torrent.
  */
-export function createDetail ({ onMove, onRemoved }) {
+export function createDetail ({ onMove, onRemove }) {
   const panel = $('detail')
   let id = null
   let torrent = null
@@ -69,17 +69,7 @@ export function createDetail ({ onMove, onRemoved }) {
   $('detail-reveal').addEventListener('click', () => run(window.tern.reveal(id)))
   $('detail-up').addEventListener('click', () => onMove(id, 'up'))
   $('detail-down').addEventListener('click', () => onMove(id, 'down'))
-  $('detail-remove').addEventListener('click', () => removeSelected(false))
-  $('detail-trash').addEventListener('click', () => { $('detail-confirm').hidden = false })
-  $('detail-confirm-no').addEventListener('click', () => { $('detail-confirm').hidden = true })
-  $('detail-confirm-yes').addEventListener('click', () => removeSelected(true))
-
-  async function removeSelected (trash) {
-    const target = id
-    $('detail-confirm').hidden = true
-    onRemoved(target)
-    await run(window.tern.remove(target, trash))
-  }
+  $('detail-remove').addEventListener('click', () => { if (torrent) onRemove(torrent) })
 
   // ---- rendering
   function chip (text, tone) {
@@ -257,7 +247,6 @@ export function createDetail ({ onMove, onRemoved }) {
       last = {}
       $('detail-files').dataset.sig = ''
       $('detail-files').replaceChildren()
-      $('detail-confirm').hidden = true
       panel.hidden = false
       if (torrentId) loadInfo(torrentId)
     },

@@ -121,17 +121,10 @@
               <button class="btn btn-quiet" id="detail-reveal" title="Показать в папке" aria-label="Показать в папке"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg></button>
               <button class="btn btn-quiet" id="detail-up" title="Выше в очереди" aria-label="Выше в очереди"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg></button>
               <button class="btn btn-quiet" id="detail-down" title="Ниже в очереди" aria-label="Ниже в очереди"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button>
-              <button class="btn btn-quiet btn-danger" id="detail-remove" title="Убрать из списка" aria-label="Убрать из списка"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg></button>
-              <button class="btn btn-quiet btn-danger" id="detail-trash" title="Убрать и удалить файлы" aria-label="Убрать и удалить файлы"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.8 4.5l.5 9h5.4l.5-9"/></svg></button>
+              <button class="btn btn-quiet btn-danger" id="detail-remove" title="Удалить торрент" aria-label="Удалить торрент"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.8 4.5l.5 9h5.4l.5-9"/></svg></button>
             </div>
           </div>
         </div>
-        <p class="confirm" id="detail-confirm" hidden>
-          <span>Файлы уйдут в корзину. Продолжить?</span>
-          <button class="link link-danger" id="detail-confirm-yes">Да, удалить</button>
-          <button class="link" id="detail-confirm-no">Нет</button>
-        </p>
-
         <div class="tabs" role="tablist" id="tabs">
           <button class="tab" role="tab" data-tab="files" aria-selected="true">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3"/></svg>Файлы
@@ -154,6 +147,26 @@
 
   <div class="drop" id="drop" hidden><div class="drop-card">Отпусти, чтобы добавить</div></div>
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <!-- Removal -->
+  <dialog id="dlg-remove" class="dlg" aria-labelledby="remove-title" aria-describedby="remove-name remove-note">
+    <div class="dlg-body">
+      <h2 id="remove-title" class="dlg-title">Удалить торрент?</h2>
+      <p id="remove-name" class="dlg-name remove-name"></p>
+      <p class="remove-note">Торрент будет удалён из списка.</p>
+      <label class="remove-choice">
+        <input id="remove-files" type="checkbox" aria-describedby="remove-note">
+        <span>Также удалить скачанные файлы и исходный .torrent-файл</span>
+      </label>
+      <p id="remove-note" class="remove-note">Файлы будут перемещены в корзину. Исходный .torrent — если его путь сохранён.</p>
+      <p id="remove-status" class="remove-note" role="status" aria-live="polite" hidden></p>
+      <div class="dlg-actions">
+        <span class="grow"></span>
+        <button type="button" class="btn" id="remove-cancel" autofocus>Отмена</button>
+        <button type="button" class="btn btn-danger" id="remove-confirm">Удалить</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Add -->
   <dialog id="dlg-add" class="dlg" aria-labelledby="add-title">

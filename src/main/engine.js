@@ -10,6 +10,8 @@ const { loadSparseStore } = require('./sparse-store')
 const { torrentOptions, dropRarityMap, installTorrentOptimizations } = require('./torrent-tuning')
 const { measureTorrentProgress } = require('./progress')
 const { installTorrentVerification, createVerificationBudget } = require('./verification')
+const crypto = require('node:crypto')
+const { pathKey, contained, cleanSourceTorrent, inspectPath, resolveLocalPath, readTorrentFile, readImportedTorrent, validateTrashTarget, pruneEmptyDirectories } = require('./torrent-removal')
 
 const TICK_MS = 1000 // while a window is showing the list
 const BACKGROUND_TICK_MS = 5000 // tray only: nothing to draw, so wake up rarely and do almost no work
@@ -71,6 +73,7 @@ function cleanRecord (r, fallbackDir) {
     name: typeof r.name === 'string' && r.name ? r.name : r.id,
     path: isLocalAbsolutePath(r.path) ? path.resolve(r.path) : fallbackDir,
     magnet: typeof r.magnet === 'string' ? r.magnet : null,
+    sourceTorrent: cleanSourceTorrent(r.sourceTorrent),
     length: Number.isFinite(r.length) ? r.length : 0,
     pieceLength: Number.isFinite(r.pieceLength) ? r.pieceLength : 0,
     pieceCount: Number.isFinite(r.pieceCount) ? r.pieceCount : 0,
@@ -119,6 +122,7 @@ class Engine extends EventEmitter {
     /** True while a visible window wants snapshots. Otherwise we build none and tick slowly. */
     this.observed = false
     this.lastBitfieldSave = 0
+    this.entriesRevision = 0
   }
 
   async init () {
@@ -162,17 +166,27 @@ class Engine extends EventEmitter {
   /** @param {{kind: 'magnet', uri: string} | {kind: 'file', path: string}} input */
   async add (input) {
     let source
+    let sourceTorrent = null
     if (input.kind === 'file') {
       if (!isLocalAbsolutePath(input.path)) throw new Error('bad-file')
-      const stat = await fs.promises.stat(input.path)
-      if (!stat.isFile() || stat.size > MAX_TORRENT_FILE_BYTES) throw new Error('bad-file')
-      source = await fs.promises.readFile(input.path)
+      const read = await readImportedTorrent(input.path)
+      if (read.status !== 'ready') throw new Error('bad-file')
+      source = read.buffer
+      if (read.trackSource) sourceTorrent = { path: read.path, sha256: read.sha256, identity: read.identity }
     } else {
       source = input.uri
     }
     const parsed = await this.parseTorrent(source)
     const id = parsed.infoHash
-    if (this.entries.has(id)) return { id, duplicate: true }
+    if (this.entries.has(id)) {
+      const existing = this.entries.get(id)
+      // Reopening an old torrent can safely remember its original file without restarting it.
+      if (sourceTorrent && !existing.sourceTorrent && !existing.removing && !existing.preparingRemoval) {
+        existing.sourceTorrent = sourceTorrent
+        this._changed()
+      }
+      return { id, duplicate: true }
+    }
     if (parsed.files && parsed.files.length > MAX_TORRENT_FILES) throw new Error('too-many-files')
 
     const entry = {
@@ -181,6 +195,7 @@ class Engine extends EventEmitter {
         name: parsed.name || id,
         path: this.settings.downloadDir,
         magnet: input.kind === 'magnet' ? input.uri : null,
+        sourceTorrent,
         length: parsed.length || 0,
         pieceLength: parsed.pieceLength || 0,
         pieceCount: parsed.pieces ? parsed.pieces.length : 0,
@@ -191,6 +206,7 @@ class Engine extends EventEmitter {
       torrentBuffer: input.kind === 'file' ? source : null
     }
     this.entries.set(id, entry)
+    this.entriesRevision++
     this._start(entry)
     this._publish()
     return { id, duplicate: false }
@@ -199,7 +215,7 @@ class Engine extends EventEmitter {
   /** Confirm a torrent that is waiting in the file picker. */
   async confirm (id, { selected, dir }) {
     const entry = this.entries.get(id)
-    if (!entry || entry.stage !== 'choosing' || entry.removing) throw new Error('not-choosing')
+    if (!entry || entry.stage !== 'choosing' || entry.removing || entry.preparingRemoval) throw new Error('not-choosing')
     if (!Array.isArray(selected) || selected.length !== entry.files.length) throw new Error('bad-selection')
     if (!selected.some(Boolean)) throw new Error('nothing-selected')
 
@@ -207,7 +223,7 @@ class Engine extends EventEmitter {
       this._assertDirectory(dir)
       const previous = entry.path
       await this._stop(entry, { keepBitfield: false }) // restart at the new folder; nothing is downloaded yet
-      if (entry.removing || this.entries.get(id) !== entry) return
+      if (entry.removing || entry.preparingRemoval || this.entries.get(id) !== entry) return
       await this._pruneEmptyDirs(entry, previous)
       entry.path = path.resolve(dir)
     }
@@ -240,24 +256,77 @@ class Engine extends EventEmitter {
     this._changed()
   }
 
-  async remove (id, { trash = false } = {}) {
+  /** Internal utility RPC: paths originate from matching torrent metadata, never renderer input. */
+  async removalPlan (id) {
     const entry = this.entries.get(id)
-    if (!entry || entry.removing) return
+    if (!entry || entry.removing || entry.preparingRemoval) return null
+    entry.preparingRemoval = true
+    entry.paused = true
+    this._publish()
+    try {
+      await this._stop(entry, { keepBitfield: true })
+      const plan = await this._removalPlan(entry)
+      if (this.entries.get(id) !== entry) return null
+      plan.token = crypto.randomBytes(16).toString('hex')
+      entry.removalPlan = plan
+      // A lost/rejected bridge request must not reserve this paused torrent forever.
+      entry.removalLease = setTimeout(() => this.cancelRemovalPlan(id, plan.token), 60_000)
+      entry.removalLease.unref?.()
+      this._changed()
+      return plan
+    } catch (err) {
+      entry.preparingRemoval = false
+      entry.removalPlan = null
+      this._changed()
+      throw err
+    }
+  }
+
+  cancelRemovalPlan (id, token) {
+    const entry = this.entries.get(id)
+    if (!entry || entry.removing || entry.removalPlan?.token !== token) return
+    clearTimeout(entry.removalLease)
+    entry.preparingRemoval = false
+    entry.removalPlan = null
+    this._changed()
+  }
+
+  async remove (id, { trash = false, planToken } = {}) {
+    const entry = this.entries.get(id)
+    if (!entry || entry.removing || (entry.preparingRemoval && (!planToken || entry.removalPlan?.token !== planToken))) return { removed: false, failed: 0, skipped: 0, sourceUnavailable: false, trashed: 0 }
     const wasReady = entry.stage === 'ready'
     entry.removing = true
+    clearTimeout(entry.removalLease)
+    entry.preparingRemoval = false
     this._publish()
     await this._stop(entry, { keepBitfield: false })
+    const result = { removed: true, failed: 0, skipped: 0, sourceUnavailable: false, trashed: 0 }
+    if (trash) {
+      const plan = planToken ? entry.removalPlan : await this._removalPlan(entry)
+      if (!plan || (planToken && plan.token !== planToken)) {
+        result.skipped = Math.max(1, (entry.files || []).length)
+        result.sourceUnavailable = !entry.sourceTorrent
+      } else {
+        Object.assign(result, { failed: plan.failed, skipped: plan.skipped, sourceUnavailable: plan.sourceUnavailable })
+        await this._trashContent(entry, plan, result)
+      }
+    }
+    // A write already started before removal must finish before unlinking the fixed cache path.
+    if (entry.persistingTorrent) await entry.persistingTorrent
+    const cached = await inspectPath(this._torrentFile(id))
+    if (cached.status === 'ready') {
+      try { await fs.promises.rm(this._torrentFile(id), { force: true }) } catch { result.failed++ }
+    } else if (cached.status !== 'missing') result.skipped++
     this.entries.delete(id)
-    fs.rm(this._torrentFile(id), { force: true }, () => {})
-    if (trash && wasReady) await this._trashContent(entry)
-    else if (!wasReady) await this._pruneEmptyDirs(entry, entry.path)
+    if (!trash && !wasReady) await this._pruneEmptyDirs(entry, entry.path)
     this._reconcile()
     this._changed()
+    return result
   }
 
   setSelection (id, selected) {
     const entry = this.entries.get(id)
-    if (!entry || !entry.files || !Array.isArray(selected) || selected.length !== entry.files.length) throw new Error('bad-selection')
+    if (!entry || entry.removing || entry.preparingRemoval || !entry.files || !Array.isArray(selected) || selected.length !== entry.files.length) throw new Error('bad-selection')
     if (!selected.some(Boolean)) throw new Error('nothing-selected')
     entry.selected = selected.map(Boolean)
     entry.cache = null
@@ -323,13 +392,14 @@ class Engine extends EventEmitter {
     if (this.isShutDown) return
     this.isShutDown = true
     clearTimeout(this.tickTimer)
+    for (const entry of this.entries.values()) clearTimeout(entry.removalLease)
     this.checkpoint()
     if (this.client) await new Promise((resolve) => this.client.destroy(() => resolve()))
   }
 
   // ---------------------------------------------------------------- internals
 
-  _ready () { return [...this.entries.values()].filter((e) => e.stage === 'ready' && !e.removing) }
+  _ready () { return [...this.entries.values()].filter((e) => e.stage === 'ready' && !e.removing && !e.preparingRemoval) }
   _nextOrder () { return this._ready().reduce((max, e) => Math.max(max, e.order), -1) + 1 }
   _torrentFile (id) { return path.join(this.torrentsDir, `${id}.torrent`) }
 
@@ -346,6 +416,7 @@ class Engine extends EventEmitter {
       name: r.name,
       path: r.path,
       magnet: r.magnet || null,
+      sourceTorrent: cleanSourceTorrent(r.sourceTorrent),
       length: r.length || 0,
       pieceLength: r.pieceLength || 0,
       pieceCount: r.pieceCount || 0,
@@ -371,8 +442,8 @@ class Engine extends EventEmitter {
   }
 
   _serialize () {
-    const torrents = this._ready().map((e) => ({
-      id: e.id, name: e.name, path: e.path, magnet: e.magnet, length: e.length,
+    const torrents = [...this.entries.values()].filter((e) => e.stage === 'ready' && !e.removing).map((e) => ({
+      id: e.id, name: e.name, path: e.path, magnet: e.magnet, sourceTorrent: e.sourceTorrent, length: e.length,
       pieceLength: e.pieceLength, pieceCount: e.pieceCount, files: e.files, selected: e.selected,
       bitfield: e.bitfield, fp: e.fp, trackers: e.trackers, progressBytes: e.progressBytes, paused: e.paused,
       done: e.done, createdAt: e.createdAt, order: e.order
@@ -381,13 +452,14 @@ class Engine extends EventEmitter {
   }
 
   _changed () {
+    this.entriesRevision++
     this.stateStore.saveSoon(() => this._serialize())
     this._publish()
   }
 
   _patch (id, fields) {
     const entry = this.entries.get(id)
-    if (!entry || entry.stage !== 'ready' || entry.removing) return
+    if (!entry || entry.stage !== 'ready' || entry.removing || entry.preparingRemoval) return
     Object.assign(entry, fields)
     this._reconcile()
     this._changed()
@@ -569,12 +641,11 @@ class Engine extends EventEmitter {
 
   _persistTorrentFile (entry) {
     if (!entry.torrentBuffer) return
-    fs.mkdir(this.torrentsDir, { recursive: true }, () => {
+    entry.persistingTorrent = (entry.persistingTorrent || Promise.resolve()).then(async () => {
+      await fs.promises.mkdir(this.torrentsDir, { recursive: true })
       if (this.entries.get(entry.id) !== entry || entry.removing) return
-      fs.writeFile(this._torrentFile(entry.id), entry.torrentBuffer, (err) => {
-        if (err) console.error('[torrent-file] save failed:', err.message)
-      })
-    })
+      await fs.promises.writeFile(this._torrentFile(entry.id), entry.torrentBuffer)
+    }).catch((err) => console.error('[torrent-file] save failed:', err.message))
   }
 
   /** Copy live progress into the record so it survives stopping and restarts. */
@@ -610,33 +681,117 @@ class Engine extends EventEmitter {
    * touched (never a whole folder that merely shares the torrent's name), then empty
    * folders left behind are removed.
    */
-  async _trashContent (entry) {
-    const root = path.resolve(entry.path)
-    const files = (entry.files || []).map((f) => path.resolve(root, f.path)).filter((p) => p.startsWith(root + path.sep))
-    for (const file of files) {
-      if (!fs.existsSync(file)) continue
-      try { await this.trash(file) } catch (err) { console.error('[remove] trash failed:', err.message) }
+  _removalProgressReporter () {
+    let completed = 0
+    let last = Date.now()
+    return () => {
+      completed++
+      if (Date.now() - last < 1000) return
+      last = Date.now()
+      this.emit('removal-progress', { completed })
     }
-    const dirs = new Set()
-    for (const file of files) {
-      for (let d = path.dirname(file); d.startsWith(root + path.sep); d = path.dirname(d)) dirs.add(d)
+  }
+
+  async _sharedTargets (entry, progress = () => {}) {
+    const shared = new Set()
+    const remember = async (target) => {
+      shared.add(pathKey(target))
+      const resolved = await resolveLocalPath(target)
+      const checked = resolved.status === 'ready' ? await inspectPath(resolved.path) : resolved
+      if (resolved.status === 'ready') shared.add(pathKey(resolved.path))
+      if (checked.status === 'ready' && checked.identity.ino !== '0') shared.add(`file:${checked.identity.dev}:${checked.identity.ino}`)
+      progress()
     }
-    for (const dir of [...dirs].sort((a, b) => b.length - a.length)) {
-      try { await fs.promises.rmdir(dir) } catch { /* not empty or already gone: leave it */ }
+    for (const other of this.entries.values()) {
+      if (other === entry) continue
+      for (const file of other.files || []) {
+        const target = path.resolve(other.path, file.path)
+        if (contained(other.path, target)) await remember(target)
+      }
+      if (other.sourceTorrent) await remember(other.sourceTorrent.path)
     }
+    return shared
+  }
+
+  async _removalPlan (entry) {
+    const plan = { targets: [], failed: 0, skipped: 0, sourceUnavailable: !entry.sourceTorrent }
+    const progress = this._removalProgressReporter()
+    const cacheRoot = await resolveLocalPath(this.torrentsDir)
+    const isCachePath = (raw, canonical) => pathKey(raw) === pathKey(this.torrentsDir) || contained(this.torrentsDir, raw) ||
+      (cacheRoot.status === 'ready' && canonical && (pathKey(canonical) === pathKey(cacheRoot.path) || contained(cacheRoot.path, canonical)))
+    let parsed
+    try {
+      const cached = entry.torrentBuffer ? { status: 'ready', buffer: entry.torrentBuffer } : await readTorrentFile(this._torrentFile(entry.id))
+      if (cached.status !== 'ready' || cached.buffer.length > MAX_TORRENT_FILE_BYTES) throw new Error('missing-metadata')
+      parsed = await this.parseTorrent(cached.buffer)
+      if (parsed.infoHash !== entry.id || !Array.isArray(parsed.files) || parsed.files.length > MAX_TORRENT_FILES) throw new Error('wrong-metadata')
+    } catch { parsed = null; plan.skipped += (entry.files || []).length }
+    const shared = await this._sharedTargets(entry, progress)
+    const used = new Set()
+    for (const file of entry.stage === 'ready' && parsed?.infoHash === entry.id ? parsed.files : []) {
+      progress()
+      const target = path.resolve(entry.path, file.path)
+      if (!contained(entry.path, target) || isCachePath(target) || shared.has(pathKey(target))) { plan.skipped++; continue }
+      if (!used.has(pathKey(target))) {
+        used.add(pathKey(target))
+        const resolved = await resolveLocalPath(target)
+        if (resolved.status === 'ready' && isCachePath(target, resolved.path)) { plan.skipped++; continue }
+        const checked = await inspectPath(target)
+        if (checked.status === 'ready' && shared.has(`file:${checked.identity.dev}:${checked.identity.ino}`)) plan.skipped++
+        else if (checked.status === 'ready') plan.targets.push({ kind: 'content', root: path.resolve(entry.path), path: target, identity: checked.identity })
+        else if (checked.status === 'failed') plan.failed++
+        else if (checked.status !== 'missing') plan.skipped++
+        progress()
+      }
+    }
+    if (entry.sourceTorrent) {
+      const source = { kind: 'source', ...entry.sourceTorrent }
+      const resolved = await resolveLocalPath(source.path)
+      if (isCachePath(source.path, resolved.status === 'ready' ? resolved.path : null)) {
+        // App-owned metadata is handled only by the fixed infoHash cache unlink below.
+        plan.sourceUnavailable = true
+      } else if (shared.has(pathKey(source.path))) plan.skipped++
+      else {
+        const read = await validateTrashTarget(source)
+        if (read.status === 'ready') {
+          try {
+            if (shared.has(`file:${read.identity.dev}:${read.identity.ino}`) || (await this.parseTorrent(read.buffer)).infoHash !== entry.id) plan.skipped++
+            else if (!used.has(pathKey(source.path))) plan.targets.push(source)
+          } catch { plan.skipped++ }
+        } else if (read.status === 'failed') plan.failed++
+        else if (read.status !== 'missing') plan.skipped++
+      }
+    }
+    return plan
+  }
+
+  async _trashContent (entry, plan, result) {
+    let shared
+    let revision = -1
+    const progress = this._removalProgressReporter()
+    for (const target of plan.targets) {
+      progress()
+      if (revision !== this.entriesRevision) {
+        revision = this.entriesRevision
+        shared = await this._sharedTargets(entry, progress)
+      }
+      // Ownership changed during the async scan: leave the affected file rather than using a stale allowlist.
+      if (revision !== this.entriesRevision || shared.has(pathKey(target.path)) || (target.identity && shared.has(`file:${target.identity.dev}:${target.identity.ino}`)) || (target.kind === 'content' && pathKey(entry.path) !== pathKey(target.root))) { result.skipped++; continue }
+      const checked = await validateTrashTarget(target)
+      if (revision !== this.entriesRevision) { result.skipped++; continue }
+      if (checked.status === 'missing') continue
+      if (checked.status !== 'ready') { result[checked.status === 'failed' ? 'failed' : 'skipped']++; continue }
+      try { await this.trash(target.path); result.trashed++ } catch (err) {
+        if (err.message === 'trash-unsafe') result.skipped++
+        else if (err.message !== 'trash-missing') result.failed++
+      }
+    }
+    await pruneEmptyDirectories(entry.path, plan.targets.filter((target) => target.kind === 'content').map((target) => target.path), progress)
   }
 
   /** Remove the empty folders WebTorrent creates up front (never a folder that has anything in it). */
   async _pruneEmptyDirs (entry, root) {
-    const base = path.resolve(root)
-    const dirs = new Set()
-    for (const file of entry.files || []) {
-      for (let d = path.dirname(path.resolve(base, file.path)); d.startsWith(base + path.sep); d = path.dirname(d)) dirs.add(d)
-    }
-    if (entry.name) dirs.add(path.resolve(base, entry.name))
-    for (const dir of [...dirs].filter((d) => d.startsWith(base + path.sep)).sort((a, b) => b.length - a.length)) {
-      try { await fs.promises.rmdir(dir) } catch { /* not empty or already gone: leave it */ }
-    }
+    await pruneEmptyDirectories(root, (entry.files || []).map((file) => path.resolve(root, file.path)))
   }
 
   // ---------------------------------------------------------------- snapshots

@@ -98,6 +98,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'packaged engine smoke failed' }
           node scripts/verification-smoke.js
           if ($LASTEXITCODE -ne 0) { throw 'packaged verification smoke failed' }
+          npx electron scripts/renderer-smoke.js
+          if ($LASTEXITCODE -ne 0) { throw 'packaged renderer smoke failed' }
           npx electron scripts/startup-smoke.js
           if ($LASTEXITCODE -ne 0) { throw 'packaged startup update smoke failed' }
 
