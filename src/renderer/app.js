@@ -2,7 +2,7 @@ import { $, el, icon, toast, run } from './dom.js'
 import { drawPieceMap, drawSpark, refreshColors } from './canvas.js'
 import { fmtBytes, fmtEta, plural, rateParts, fmtRate } from './format.js'
 import { STATE_LABEL, ERRORS } from './strings.js'
-import { initAddDialog, createPicker, initSettings, registerHandler } from './dialogs.js'
+import { initAddDialog, createPicker, createRemovalDialog, initSettings, registerHandler } from './dialogs.js'
 import { createDetail } from './detail.js'
 import { initUpdates } from './update.js'
 import { visibleProgress, visiblePieces } from './verification-progress.js'
@@ -43,9 +43,12 @@ const rows = new Map()
 const speeds = []
 
 const picker = createPicker()
+const removal = createRemovalDialog({
+  onRemoved: (id) => { if (selectedId === id) selectedId = null }
+})
 const detail = createDetail({
   onMove: (id, where) => run(window.tern.move(id, where)),
-  onRemoved: (id) => { if (selectedId === id) selectedId = null }
+  onRemove: (torrent) => removal.open(torrent)
 })
 
 const current = (id) => state.torrents.find((t) => t.id === id)
@@ -54,7 +57,7 @@ const isSelectable = (t) => t.state !== 'metadata' && t.state !== 'choosing'
 // ------------------------------------------------------------------ rows
 
 function actionFor (t) {
-  if (t.state === 'metadata' || t.state === 'choosing') return { icon: 'close', label: 'Отменить', run: () => window.tern.remove(t.id, false) }
+  if (t.state === 'metadata' || t.state === 'choosing') return { icon: 'close', label: 'Удалить торрент', run: () => removal.open(t) }
   if (t.state === 'done') return null
   if (t.paused || t.state === 'queued' || t.state === 'error') return { icon: 'play', label: 'Продолжить', run: () => window.tern.resume(t.id) }
   return { icon: 'pause', label: 'Приостановить', run: () => window.tern.pause(t.id) }

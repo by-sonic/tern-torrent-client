@@ -73,6 +73,8 @@ async function makeSwarm (t) {
   t.after(async () => {
     for (const engine of swarm.engines) await engine.shutdown()
     await new Promise((resolve) => seeder.destroy(resolve))
+    assert.equal(path.dirname(path.resolve(root)), path.resolve(os.tmpdir()))
+    assert.ok(path.basename(root).startsWith('tern-test-'))
     fs.rmSync(root, { recursive: true, force: true })
   })
   return swarm
@@ -208,13 +210,153 @@ test('removing with "delete files" trashes only the torrent\'s own files', async
 
   const keep = downloaded(swarm, 'keep.txt')
   fs.writeFileSync(keep, 'not part of the torrent')
-  await engine.remove(id, { trash: true })
+  const result = await engine.remove(id, { trash: true })
 
-  assert.deepEqual(trashed.map((p) => path.basename(p)).sort(), ['a.bin', 'b.bin'])
+  assert.deepEqual(trashed.map((p) => path.basename(p)).sort(), ['a.bin', 'album.torrent', 'b.bin'])
+  assert.deepEqual(result, { removed: true, failed: 0, skipped: 0, sourceUnavailable: false, trashed: 3 })
   assert.ok(fs.existsSync(keep), 'a file that merely shares the folder is untouched')
   assert.ok(fs.existsSync(path.dirname(keep)), 'a non-empty folder is kept')
   assert.equal(stateOf(engine, id), undefined)
   assert.equal(engine.client.torrents.length, 0)
+})
+
+async function pausedRemovalFixture (t, options) {
+  const swarm = await makeSwarm(t)
+  const engine = await swarm.engine(options)
+  const { id, listed } = await addAndPick(swarm, engine)
+  fs.mkdirSync(path.dirname(downloaded(swarm, 'a.bin')), { recursive: true })
+  fs.writeFileSync(downloaded(swarm, 'a.bin'), swarm.a)
+  fs.writeFileSync(downloaded(swarm, 'b.bin'), swarm.b)
+  await engine.confirm(id, { selected: listed.map(() => true), dir: '' })
+  engine.pause(id)
+  await waitFor(() => !engine.entries.get(id).live && !engine.entries.get(id).stopping, 'fixture stores paused')
+  if (engine.entries.get(id).persistingTorrent) await engine.entries.get(id).persistingTorrent
+  return { swarm, engine, id }
+}
+
+test('list-only removal preserves downloaded files and original even with a pending cache write', async (t) => {
+  const calls = []
+  const { swarm, engine, id } = await pausedRemovalFixture(t, { trash: async (target) => calls.push(target) })
+  const entry = engine.entries.get(id)
+  entry.persistingTorrent = new Promise((resolve) => setTimeout(async () => {
+    await fs.promises.writeFile(engine._torrentFile(id), entry.torrentBuffer)
+    resolve()
+  }, 30))
+  const result = await engine.remove(id, { trash: false })
+  assert.deepEqual(result, { removed: true, failed: 0, skipped: 0, sourceUnavailable: false, trashed: 0 })
+  assert.deepEqual(calls, [])
+  assert.ok(fs.readFileSync(downloaded(swarm, 'a.bin')).equals(swarm.a))
+  assert.ok(fs.existsSync(swarm.torrentPath))
+  assert.ok(!fs.existsSync(engine._torrentFile(id)), 'pending write cannot resurrect the cache')
+  assert.equal(stateOf(engine, id), undefined)
+})
+
+test('original source receipt persists across restart and prepared removal survives a checkpoint', async (t) => {
+  const calls = []
+  const { swarm, engine: first, id } = await pausedRemovalFixture(t)
+  const plan = await first.removalPlan(id)
+  assert.ok(plan.token)
+  first.checkpoint()
+  const saved = JSON.parse(fs.readFileSync(path.join(swarm.root, 'state.json'), 'utf8'))
+  assert.equal(saved.torrents[0].id, id, 'preparation does not drop the persistent record')
+  assert.equal(saved.torrents[0].paused, true)
+  assert.equal(saved.torrents[0].sourceTorrent.path, swarm.torrentPath)
+  await first.shutdown()
+  const restarted = await swarm.engine({ trash: async (target) => { calls.push(target); fs.rmSync(target) } })
+  const result = await restarted.remove(id, { trash: true })
+  assert.equal(result.trashed, 3)
+  assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['a.bin', 'album.torrent', 'b.bin'])
+})
+
+test('failed or cancelled preparation leaves a paused retryable record', async (t) => {
+  const { engine, id } = await pausedRemovalFixture(t)
+  const originalPlan = engine._removalPlan
+  engine._removalPlan = async () => { throw new Error('fixture-plan-failed') }
+  await assert.rejects(engine.removalPlan(id), /fixture-plan-failed/)
+  assert.equal(engine.entries.get(id).preparingRemoval, false)
+  assert.equal(stateOf(engine, id).state, 'paused')
+  assert.equal(engine._serialize().torrents[0].id, id)
+  engine._removalPlan = originalPlan
+  const plan = await engine.removalPlan(id)
+  engine.cancelRemovalPlan(id, plan.token)
+  assert.equal(engine.entries.get(id).preparingRemoval, false)
+  const retried = await engine.removalPlan(id)
+  const result = await engine.remove(id, { trash: true, planToken: retried.token })
+  assert.equal(result.removed, true)
+})
+
+test('trusted metadata owns deletion targets while modified state paths and shared files stay intact', async (t) => {
+  const calls = []
+  const { swarm, engine, id } = await pausedRemovalFixture(t, { trash: async (target) => { calls.push(target); fs.rmSync(target) } })
+  const keep = downloaded(swarm, 'keep.txt')
+  fs.writeFileSync(keep, 'unrelated')
+  const entry = engine.entries.get(id)
+  entry.files.push({ path: 'album/keep.txt', length: 9 })
+  const other = engine._fromRecord({ id: 'f'.repeat(40), name: 'other', path: entry.path, files: [{ path: 'album/a.bin', length: swarm.a.length }], paused: true })
+  engine.entries.set(other.id, other)
+  const result = await engine.remove(id, { trash: true })
+  assert.equal(result.skipped, 1)
+  assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['album.torrent', 'b.bin'])
+  assert.ok(fs.existsSync(downloaded(swarm, 'a.bin')))
+  assert.equal(fs.readFileSync(keep, 'utf8'), 'unrelated')
+  assert.ok(engine.entries.has(other.id))
+})
+
+test('replaced or missing original and native trash failures produce an honest partial result', async (t) => {
+  for (const scenario of ['replaced', 'missing', 'native-failure']) {
+    await t.test(scenario, async (st) => {
+      const { swarm, engine, id } = await pausedRemovalFixture(st, { trash: async (target) => {
+        if (scenario === 'native-failure' && target.endsWith('a.bin')) throw new Error('fixture-native-denied')
+        fs.rmSync(target)
+      } })
+      if (scenario === 'replaced') fs.writeFileSync(swarm.torrentPath, 'unrelated replacement')
+      if (scenario === 'missing') fs.rmSync(swarm.torrentPath)
+      const result = await engine.remove(id, { trash: true })
+      assert.equal(result.removed, true)
+      assert.equal(result.failed, scenario === 'native-failure' ? 1 : 0)
+      assert.equal(result.skipped, scenario === 'replaced' ? 1 : 0)
+      assert.equal(stateOf(engine, id), undefined)
+      if (scenario === 'replaced') assert.equal(fs.readFileSync(swarm.torrentPath, 'utf8'), 'unrelated replacement')
+      if (scenario === 'native-failure') assert.ok(fs.existsSync(downloaded(swarm, 'a.bin')))
+    })
+  }
+})
+
+test('legacy records can remember a reimported source; unconfirmed imports preserve pre-existing content', async (t) => {
+  const { swarm, engine, id } = await pausedRemovalFixture(t)
+  engine.entries.get(id).sourceTorrent = null
+  assert.equal((await engine.add({ kind: 'file', path: swarm.torrentPath })).duplicate, true)
+  assert.equal(engine.entries.get(id).sourceTorrent.path, swarm.torrentPath)
+  engine.entries.get(id).stage = 'choosing'
+  const result = await engine.remove(id, { trash: true })
+  assert.equal(result.trashed, 1, 'only the tracked original is eligible before confirming a download')
+  assert.ok(fs.readFileSync(downloaded(swarm, 'a.bin')).equals(swarm.a))
+})
+
+test('changed shared ownership during an asynchronous scan conservatively leaves content intact', async (t) => {
+  const calls = []
+  const { swarm, engine, id } = await pausedRemovalFixture(t, { trash: async (target) => calls.push(target) })
+  const plan = await engine.removalPlan(id)
+  engine._sharedTargets = async () => { engine.entriesRevision++; return new Set() }
+  const result = await engine.remove(id, { trash: true, planToken: plan.token })
+  assert.equal(result.skipped, plan.targets.length)
+  assert.deepEqual(calls, [])
+  assert.ok(fs.existsSync(downloaded(swarm, 'a.bin')))
+})
+
+test('another paused torrent using a local junction keeps ownership of the same physical content', async (t) => {
+  const calls = []
+  const { swarm, engine, id } = await pausedRemovalFixture(t, { trash: async (target) => { calls.push(target); fs.rmSync(target) } })
+  const alias = path.join(swarm.root, 'download-alias')
+  fs.symlinkSync(path.join(swarm.root, 'downloads'), alias, process.platform === 'win32' ? 'junction' : 'dir')
+  const other = engine._fromRecord({ id: 'f'.repeat(40), name: 'other', path: alias, files: [{ path: 'album/a.bin', length: swarm.a.length }], paused: true })
+  engine.entries.set(other.id, other)
+  engine.entriesRevision++
+  const result = await engine.remove(id, { trash: true })
+  assert.equal(result.skipped, 1)
+  assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['album.torrent', 'b.bin'])
+  assert.ok(fs.readFileSync(downloaded(swarm, 'a.bin')).equals(swarm.a))
+  fs.rmSync(alias)
 })
 
 test('torrents run sequentially, without the rarity map, on the sparse store', async (t) => {

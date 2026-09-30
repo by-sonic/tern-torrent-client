@@ -1,7 +1,76 @@
 import { $, run, toast, openDialog, closeDialog } from './dom.js'
 import { renderFiles } from './files-list.js'
 import { fmtBytes } from './format.js'
-import { ADD_TEXT_ERROR } from './strings.js'
+import { ADD_TEXT_ERROR, REMOVE_TEXT, removalWarning } from './strings.js'
+
+// ------------------------------------------------------------------ removal
+
+export function createRemovalDialog ({ onRemoved }) {
+  const dialog = $('dlg-remove')
+  const files = $('remove-files')
+  const cancel = $('remove-cancel')
+  const confirm = $('remove-confirm')
+  const status = $('remove-status')
+  let target = null
+  let busy = false
+
+  function setBusy (value) {
+    busy = value
+    files.disabled = value
+    cancel.disabled = value
+    confirm.disabled = value
+    dialog.setAttribute('aria-busy', String(value))
+    confirm.textContent = value ? REMOVE_TEXT.busy : REMOVE_TEXT.confirm
+  }
+
+  function close () {
+    if (busy) return
+    target = null
+    closeDialog(dialog)
+  }
+
+  cancel.addEventListener('click', close)
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); close() })
+  confirm.addEventListener('click', async () => {
+    if (!target || busy) return
+    // Keep the chosen torrent and checkbox value stable across later snapshots.
+    const id = target.id
+    const trash = files.checked
+    setBusy(true)
+    status.textContent = trash ? REMOVE_TEXT.trashing : REMOVE_TEXT.removing
+    status.hidden = false
+    status.classList.remove('field-error')
+    try {
+      const result = await window.tern.remove(id, trash)
+      if (result?.removed) onRemoved(id)
+      target = null
+      closeDialog(dialog)
+      const warning = removalWarning(result)
+      if (warning) toast('', result.failed || result.skipped ? 'error' : 'info', warning)
+    } catch (err) {
+      console.error(err)
+      status.textContent = REMOVE_TEXT.failed
+      status.classList.add('field-error')
+    } finally {
+      setBusy(false)
+    }
+  })
+
+  return {
+    open (torrent) {
+      if (!torrent || busy || dialog.open) return
+      target = { id: torrent.id }
+      $('remove-name').textContent = torrent.name
+      files.checked = false
+      status.hidden = true
+      status.textContent = ''
+      status.classList.remove('field-error')
+      setBusy(false)
+      openDialog(dialog)
+      cancel.focus()
+    }
+  }
+}
 
 // ------------------------------------------------------------------ add
 

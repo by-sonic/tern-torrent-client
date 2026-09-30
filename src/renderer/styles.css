@@ -219,8 +219,6 @@ svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; s
 .detail-stats b { color: var(--ink); font-weight: 500; }
 .detail-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .detail-icons { display: flex; gap: 2px; }
-.confirm { display: flex; align-items: center; gap: 14px; margin: 0 16px 10px; font-size: 13px; }
-.confirm span { margin-right: auto; }
 
 .tabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--line); }
 .tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); margin-bottom: -1px; }
@@ -260,6 +258,12 @@ svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; s
 .dlg-title { margin: 0; font: 600 22px/1.15 var(--display); font-stretch: 88%; letter-spacing: -0.02em; }
 .dlg-name { font-family: var(--body); font-stretch: 100%; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .dlg-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.remove-name { margin: 0; max-height: 25vh; overflow-y: auto; }
+.remove-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.remove-choice { display: flex; align-items: flex-start; gap: 10px; line-height: 1.45; cursor: pointer; }
+.remove-choice input { flex: none; width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--azure); }
+#dlg-remove .dlg-body { overflow-y: auto; }
+#dlg-remove .dlg-body > * { flex-shrink: 0; }
 @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
 
 .field { display: flex; flex-direction: column; gap: 8px; }

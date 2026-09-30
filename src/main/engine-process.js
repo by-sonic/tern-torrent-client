@@ -8,7 +8,7 @@ const { JsonStore } = require('./store')
 
 const port = process.parentPort
 if (!port) throw new Error('engine-process requires an Electron utility process')
-const ALLOWED = new Set(['add', 'confirm', 'pause', 'resume', 'pauseAll', 'resumeAll', 'move', 'remove', 'files', 'info', 'contentPath', 'setSelection', 'setSettings', 'snapshot'])
+const ALLOWED = new Set(['add', 'confirm', 'pause', 'resume', 'pauseAll', 'resumeAll', 'move', 'remove', 'removalPlan', 'cancelRemovalPlan', 'files', 'info', 'contentPath', 'setSelection', 'setSettings', 'snapshot'])
 const requestContext = new AsyncLocalStorage()
 const pendingTrash = new Map()
 const inflight = new Set()
@@ -46,6 +46,7 @@ async function invoke (message) {
         trash
       })
       for (const event of ['state', 'stats', 'completed']) engine.on(event, (payload) => post({ type: 'event', event, value: payload }))
+      engine.on('removal-progress', (progress) => post({ type: 'removal-progress', requestId: requestContext.getStore(), completed: progress.completed }))
       await engine.init()
       engine.setObserved(observed)
       value = engine.snapshot()

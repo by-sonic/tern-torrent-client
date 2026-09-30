@@ -5,6 +5,7 @@ const { contextBridge } = require('electron')
 const GB = 1024 ** 3
 const A = 'a'.repeat(40)
 const B = 'b'.repeat(40)
+const C = 'c'.repeat(40)
 const makeTorrent = (id, name, size, count) => ({
   id, name, size, total: size, state: 'downloading', paused: false,
   progress: 0.5, down: 55 * 1024 ** 2, up: 0, peers: 12, eta: 1400,
@@ -20,9 +21,10 @@ const fileRows = {
   [A]: [0, 1].map((index) => ({ index, path: `large/image-${index}.iso`, length: 75 * GB, progress: 0.5, selected: true })),
   [B]: [0, 1, 2].map((index) => ({ index, path: `small/image-${index}.iso`, length: GB / 3, progress: 0.5, selected: true }))
 }
-const held = { files: new Set(), info: new Set(), select: new Set() }
-const pending = { files: [], info: [], select: [] }
-const calls = { files: [], select: [] }
+const held = { files: new Set(), info: new Set(), select: new Set(), remove: new Set() }
+const pending = { files: [], info: [], select: [], remove: [] }
+const calls = { files: [], select: [], remove: [] }
+const removeResults = []
 let serial = 0
 let listener = null
 const copy = (value) => JSON.parse(JSON.stringify(value))
@@ -33,8 +35,8 @@ function push (patch = {}) {
 }
 
 function deferred (kind, id, value, complete = (result) => result) {
-  if (!held[kind].has(id)) return Promise.resolve(complete(value))
-  return new Promise((resolve) => pending[kind].push({ serial: ++serial, id, value, resolve, complete }))
+  if (!held[kind].has(id)) return Promise.resolve().then(() => complete(value))
+  return new Promise((resolve, reject) => pending[kind].push({ serial: ++serial, id, value, resolve, reject, complete }))
 }
 
 const ok = async () => undefined
@@ -54,20 +56,38 @@ contextBridge.exposeInMainWorld('tern', {
   pause: async (id) => push({ id, state: 'paused', paused: true }),
   resume: async (id) => push({ id, state: 'downloading', paused: false }),
   addText: ok, addPaths: ok, pickTorrent: ok, pickFolder: async () => null, confirm: ok,
-  pauseAll: ok, resumeAll: ok, move: ok, remove: ok, reveal: ok, setSettings: ok,
+  remove: (id, trash) => {
+    calls.remove.push({ id, trash })
+    const result = removeResults.shift() || { removed: true, failed: 0, skipped: 0, sourceUnavailable: false, trashed: 0 }
+    return deferred('remove', id, result, (accepted) => {
+      if (accepted.error) throw new Error('Fixture removal failed')
+      if (accepted.removed) { state.torrents = state.torrents.filter((torrent) => torrent.id !== id); push() }
+      return accepted
+    })
+  },
+  pauseAll: ok, resumeAll: ok, move: ok, reveal: ok, setSettings: ok,
   registerHandler: ok, checkForUpdates: ok, installUpdate: ok, pathForFile: () => ''
 })
 
 contextBridge.exposeInMainWorld('ternSmoke', {
-  ids: { A, B }, push,
+  ids: { A, B, C }, push,
   hold: (kind, id) => held[kind].add(id),
   release: (kind, requestSerial) => {
     const index = pending[kind].findIndex((request) => request.serial === requestSerial)
     if (index < 0) throw new Error(`Missing ${kind} request ${requestSerial}`)
     const [request] = pending[kind].splice(index, 1)
-    request.resolve(request.complete(request.value))
+    try { request.resolve(request.complete(request.value)) } catch (err) { request.reject(err) }
   },
   unhold: (kind, id) => held[kind].delete(id),
   snapshot: () => ({ calls: copy(calls), pending: Object.fromEntries(Object.entries(pending).map(([kind, requests]) => [kind, requests.map(({ serial, id }) => ({ serial, id }))])) }),
-  progress: (id, value) => { fileRows[id].forEach((file) => { file.progress = value }) }
+  progress: (id, value) => { fileRows[id].forEach((file) => { file.progress = value }) },
+  removeResult: (result) => removeResults.push(copy(result)),
+  addTorrent: (id, name, stage = 'downloading') => {
+    const torrent = makeTorrent(id, name, GB, 3)
+    torrent.state = stage
+    if (stage === 'choosing') torrent.files = copy(fileRows[B])
+    fileRows[id] = copy(fileRows[B])
+    state.torrents.push(torrent)
+    push()
+  }
 })

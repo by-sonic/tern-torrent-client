@@ -17,7 +17,7 @@ if (process.parentPort) {
         seeder = new WebTorrent(OFFLINE)
         seeder.throttleUpload(1024 * 1024)
         const torrent = await new Promise((resolve) => seeder.seed(data.source, { announce: [announce], pieceLength: 16 * 1024 }, resolve))
-        process.parentPort.postMessage({ magnet: `${torrent.magnetURI}&x.pe=127.0.0.1:${seeder.torrentPort}` })
+        process.parentPort.postMessage({ magnet: `${torrent.magnetURI}&x.pe=127.0.0.1:${seeder.torrentPort}`, torrentFile: Buffer.from(torrent.torrentFile) })
       } else if (data.type === 'stop' && seeder) {
         await new Promise((resolve) => seeder.destroy(resolve))
         await new Promise((resolve) => tracker.close(resolve))
@@ -38,6 +38,7 @@ const { EngineService } = require(path.join(process.env.TERN_SMOKE_APP_ROOT || p
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tern-engine-smoke-'))
 const downloads = path.join(root, 'downloads')
 const userData = path.join(root, 'profile')
+const originalTorrent = path.join(root, 'fixture.torrent')
 const OFFLINE = { dht: false, lsd: false, tracker: true, natUpnp: false, natPmp: false, utp: false, webSeeds: false }
 fs.mkdirSync(downloads)
 app.setPath('userData', path.join(root, 'electron-profile'))
@@ -64,9 +65,10 @@ function startService () {
   engine = new EngineService({
     userData, defaultDir: downloads, clientOptions: OFFLINE,
     trash: async (target) => {
-      assert.equal(target, path.join(downloads, 'fixture.bin'))
+      const original = fs.realpathSync(originalTorrent)
+      assert.ok([path.join(downloads, 'fixture.bin'), original].includes(target))
       trashed.push(target)
-      await fs.promises.rename(target, path.join(root, 'trashed.bin'))
+      await fs.promises.rename(target, path.join(root, target === original ? 'trashed-original.torrent' : 'trashed.bin'))
     }
   })
   return engine.init()
@@ -79,11 +81,13 @@ app.whenReady().then(async () => {
   const content = crypto.randomBytes(8 * 1024 * 1024)
   fs.writeFileSync(source, content)
   seeder = utilityProcess.fork(__filename, [], { serviceName: 'Tern smoke loopback seeder', stdio: 'pipe' })
-  const magnet = await new Promise((resolve, reject) => {
-    seeder.once('message', (message) => message.error ? reject(new Error(message.error)) : resolve(message.magnet))
+  const seed = await new Promise((resolve, reject) => {
+    seeder.once('message', (message) => message.error ? reject(new Error(message.error)) : resolve(message))
     seeder.once('exit', (code) => reject(new Error(`seeder exited: ${code}`)))
     seeder.postMessage({ type: 'seed', source })
   })
+  const magnet = seed.magnet
+  fs.writeFileSync(originalTorrent, Buffer.from(seed.torrentFile))
 
   await startService()
   loop.enable()
@@ -99,6 +103,7 @@ app.whenReady().then(async () => {
   await waitForState(id, null, (torrent) => torrent.progress > 0 && torrent.progress < 1)
   await engine.pause(id)
   await waitForState(id, 'paused')
+  assert.equal((await engine.add({ kind: 'file', path: originalTorrent })).duplicate, true)
   assert.equal(await engine.contentPath(id), path.join(downloads, 'fixture.bin'))
   await engine.setSelection(id, [true])
   await engine.shutdown()
@@ -106,6 +111,7 @@ app.whenReady().then(async () => {
   assert.equal(saved.version, 1)
   assert.equal(saved.torrents[0].id, id)
   assert.equal(saved.torrents[0].paused, true)
+  assert.equal(saved.torrents[0].sourceTorrent.path, fs.realpathSync(originalTorrent))
   assert.ok(saved.torrents[0].progressBytes > 0)
 
   await startService()
@@ -118,15 +124,19 @@ app.whenReady().then(async () => {
   await waitForState(id, 'paused')
   await engine.move(id, 'top')
   fs.writeFileSync(path.join(downloads, 'keep.txt'), 'unrelated file must survive')
-  await engine.remove(id, { trash: true })
-  assert.equal(trashed.length, 1)
+  const removal = await engine.remove(id, { trash: true })
+  assert.deepEqual(removal, { removed: true, failed: 0, skipped: 0, sourceUnavailable: false, trashed: 2 })
+  assert.equal(trashed.length, 2)
   assert.ok(fs.readFileSync(path.join(root, 'trashed.bin')).equals(content))
+  assert.ok(fs.readFileSync(path.join(root, 'trashed-original.torrent')).equals(Buffer.from(seed.torrentFile)))
+  assert.ok(!fs.existsSync(originalTorrent))
+  assert.ok(!fs.existsSync(path.join(userData, 'torrents', `${id}.torrent`)))
   assert.equal(fs.readFileSync(path.join(downloads, 'keep.txt'), 'utf8'), 'unrelated file must survive')
   assert.equal((await engine.snapshot()).torrents.length, 0)
   await engine.shutdown()
   loop.disable()
   console.log(`ENGINE_SMOKE_MAIN_LOOP ${JSON.stringify({ p99ms: loop.percentile(99) / 1e6, maxms: loop.max / 1e6 })}`)
-  console.log('ENGINE_SMOKE_OK utility native runtime, loopback download byte equality, RPC, settings, selection, pause/resume, persisted restart, exact-file trash and shutdown')
+  console.log('ENGINE_SMOKE_OK utility native runtime, loopback download byte equality, RPC, settings, selection, pause/resume, persisted source restart, exact-file content+original trash and shutdown')
 }).catch((err) => { console.error(err.stack); process.exitCode = 1 }).finally(async () => {
   clearTimeout(timeout)
   try { if (engine) await engine.shutdown() } catch {}
