@@ -256,6 +256,9 @@ async function run () {
   win.setSize(1440, 900)
   nativeTheme.themeSource = 'dark'
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] })
+  // Flush Chromium's rendering lifecycle so the hidden fixture delivers media-query changes.
+  // matchMedia can already reflect the emulation while its change listener awaits a frame.
+  await win.webContents.capturePage()
   await evaluate(`await until(() => document.documentElement.dataset.scheme === 'dark'); document.querySelector('#detail-remove').click()`)
   await sleep(200)
   if (process.env.TERN_SMOKE_SCREENSHOT) fs.writeFileSync(path.resolve(process.env.TERN_SMOKE_SCREENSHOT), (await win.webContents.capturePage()).toPNG())
