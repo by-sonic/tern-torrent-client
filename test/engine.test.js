@@ -260,7 +260,7 @@ test('original source receipt persists across restart and prepared removal survi
   const saved = JSON.parse(fs.readFileSync(path.join(swarm.root, 'state.json'), 'utf8'))
   assert.equal(saved.torrents[0].id, id, 'preparation does not drop the persistent record')
   assert.equal(saved.torrents[0].paused, true)
-  assert.equal(saved.torrents[0].sourceTorrent.path, swarm.torrentPath)
+  assert.equal(saved.torrents[0].sourceTorrent.path, fs.realpathSync(swarm.torrentPath))
   await first.shutdown()
   const restarted = await swarm.engine({ trash: async (target) => { calls.push(target); fs.rmSync(target) } })
   const result = await restarted.remove(id, { trash: true })
@@ -326,7 +326,7 @@ test('legacy records can remember a reimported source; unconfirmed imports prese
   const { swarm, engine, id } = await pausedRemovalFixture(t)
   engine.entries.get(id).sourceTorrent = null
   assert.equal((await engine.add({ kind: 'file', path: swarm.torrentPath })).duplicate, true)
-  assert.equal(engine.entries.get(id).sourceTorrent.path, swarm.torrentPath)
+  assert.equal(engine.entries.get(id).sourceTorrent.path, fs.realpathSync(swarm.torrentPath))
   engine.entries.get(id).stage = 'choosing'
   const result = await engine.remove(id, { trash: true })
   assert.equal(result.trashed, 1, 'only the tracked original is eligible before confirming a download')
@@ -356,6 +356,36 @@ test('another paused torrent using a local junction keeps ownership of the same 
   assert.equal(result.skipped, 1)
   assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['album.torrent', 'b.bin'])
   assert.ok(fs.readFileSync(downloaded(swarm, 'a.bin')).equals(swarm.a))
+  fs.rmSync(alias)
+})
+
+test('canonical cached torrent sources are never granted native trash authority', async (t) => {
+  const calls = []
+  const { engine, id } = await pausedRemovalFixture(t, { trash: async (target) => { calls.push(target); fs.rmSync(target) } })
+  engine.entries.get(id).sourceTorrent = null
+  const cached = engine._torrentFile(id)
+  assert.equal((await engine.add({ kind: 'file', path: cached })).duplicate, true)
+  assert.equal(engine.entries.get(id).sourceTorrent.path, fs.realpathSync(cached))
+  const result = await engine.remove(id, { trash: true })
+  assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['a.bin', 'b.bin'])
+  assert.equal(result.sourceUnavailable, true)
+  assert.equal(result.trashed, 2)
+  assert.ok(!fs.existsSync(cached), 'fixed cache unlink remains separate from native source trash')
+})
+
+test('cache-root aliases protect canonical physical source paths from native trash', async (t) => {
+  const calls = []
+  const { swarm, engine, id } = await pausedRemovalFixture(t, { trash: async (target) => { calls.push(target); fs.rmSync(target) } })
+  engine.entries.get(id).sourceTorrent = null
+  const cached = engine._torrentFile(id)
+  await engine.add({ kind: 'file', path: cached })
+  const alias = path.join(swarm.root, 'cache-alias')
+  fs.symlinkSync(engine.torrentsDir, alias, process.platform === 'win32' ? 'junction' : 'dir')
+  engine.torrentsDir = alias
+  const result = await engine.remove(id, { trash: true })
+  assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['a.bin', 'b.bin'])
+  assert.equal(result.sourceUnavailable, true)
+  assert.ok(fs.existsSync(cached), 'strict no-link cache cleanup does not follow the alias')
   fs.rmSync(alias)
 })
 

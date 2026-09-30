@@ -716,6 +716,9 @@ class Engine extends EventEmitter {
   async _removalPlan (entry) {
     const plan = { targets: [], failed: 0, skipped: 0, sourceUnavailable: !entry.sourceTorrent }
     const progress = this._removalProgressReporter()
+    const cacheRoot = await resolveLocalPath(this.torrentsDir)
+    const isCachePath = (raw, canonical) => pathKey(raw) === pathKey(this.torrentsDir) || contained(this.torrentsDir, raw) ||
+      (cacheRoot.status === 'ready' && canonical && (pathKey(canonical) === pathKey(cacheRoot.path) || contained(cacheRoot.path, canonical)))
     let parsed
     try {
       const cached = entry.torrentBuffer ? { status: 'ready', buffer: entry.torrentBuffer } : await readTorrentFile(this._torrentFile(entry.id))
@@ -728,9 +731,11 @@ class Engine extends EventEmitter {
     for (const file of entry.stage === 'ready' && parsed?.infoHash === entry.id ? parsed.files : []) {
       progress()
       const target = path.resolve(entry.path, file.path)
-      if (!contained(entry.path, target) || contained(this.torrentsDir, target) || pathKey(target) === pathKey(this.torrentsDir) || shared.has(pathKey(target))) { plan.skipped++; continue }
+      if (!contained(entry.path, target) || isCachePath(target) || shared.has(pathKey(target))) { plan.skipped++; continue }
       if (!used.has(pathKey(target))) {
         used.add(pathKey(target))
+        const resolved = await resolveLocalPath(target)
+        if (resolved.status === 'ready' && isCachePath(target, resolved.path)) { plan.skipped++; continue }
         const checked = await inspectPath(target)
         if (checked.status === 'ready' && shared.has(`file:${checked.identity.dev}:${checked.identity.ino}`)) plan.skipped++
         else if (checked.status === 'ready') plan.targets.push({ kind: 'content', root: path.resolve(entry.path), path: target, identity: checked.identity })
@@ -741,7 +746,8 @@ class Engine extends EventEmitter {
     }
     if (entry.sourceTorrent) {
       const source = { kind: 'source', ...entry.sourceTorrent }
-      if (pathKey(source.path) === pathKey(this._torrentFile(entry.id)) || contained(this.torrentsDir, source.path)) {
+      const resolved = await resolveLocalPath(source.path)
+      if (isCachePath(source.path, resolved.status === 'ready' ? resolved.path : null)) {
         // App-owned metadata is handled only by the fixed infoHash cache unlink below.
         plan.sourceUnavailable = true
       } else if (shared.has(pathKey(source.path))) plan.skipped++

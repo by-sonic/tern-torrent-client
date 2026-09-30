@@ -42,6 +42,7 @@ async function resolveLocalPath (target) {
     const parts = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)
     let current = parsed.root
     let redirected = false
+    let finalStat
     for (let i = -1; i < parts.length; i++) {
       if (i >= 0) current = path.join(current, parts[i])
       let destination
@@ -51,9 +52,10 @@ async function resolveLocalPath (target) {
       }
       if (destination === undefined) {
         let stat
-        try { stat = await fs.promises.lstat(current) } catch (err) { return { status: err.code === 'ENOENT' ? 'missing' : 'failed' } }
+        try { stat = await fs.promises.lstat(current, { bigint: true }) } catch (err) { return { status: err.code === 'ENOENT' ? 'missing' : 'failed' } }
         if (stat.isSymbolicLink()) return { status: 'unsafe' } // Changed since the readlink check.
         if (i < parts.length - 1 && !stat.isDirectory()) return { status: 'unsafe' }
+        if (i === parts.length - 1) finalStat = stat
         continue
       }
       if (hops === 32) return { status: 'unsafe' }
@@ -68,7 +70,16 @@ async function resolveLocalPath (target) {
       redirected = true
       break
     }
-    if (!redirected) return { status: 'ready', path: absolute, leafLink }
+    if (!redirected) {
+      // Windows junction readlink can return an 8.3 alias. Canonicalize only after verifying the local chain.
+      let canonical
+      try { canonical = await fs.promises.realpath(absolute) } catch (err) { return { status: err.code === 'ENOENT' ? 'missing' : 'failed' } }
+      if (!safeLocalPath(canonical)) return { status: 'unsafe' }
+      const checked = await inspectPath(canonical, finalStat.isDirectory())
+      if (checked.status !== 'ready') return checked
+      if (checked.identity.dev !== String(finalStat.dev) || checked.identity.ino !== String(finalStat.ino)) return { status: 'unsafe' }
+      return { status: 'ready', path: canonical, leafLink }
+    }
   }
   return { status: 'unsafe' }
 }
