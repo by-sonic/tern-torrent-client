@@ -4,6 +4,12 @@ All notable changes to Tern are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-09-30
+
+### Fixed
+- The startup update page fills a normal, movable and resizable Tern window instead of entering monitor-wide full-screen mode.
+  It retains the check/download/install gate and error recovery before the torrent engine starts.
+
 ## [1.1.0] - 2026-09-30
 
 ### Added

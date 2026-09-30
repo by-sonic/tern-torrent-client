@@ -85,7 +85,9 @@ async function run () {
     return startup && !startup.webContents.isLoading()
   }, 'startup window')
   await until(async () => (await evaluate('return document.body.dataset.status')) === 'downloading', 'download page')
-  assert.equal(startup.isFullScreen(), true)
+  assert.equal(startup.isFullScreen(), false)
+  assert.equal(startup.isMaximized(), false)
+  assert.deepEqual(startup.getMinimumSize(), [620, 480])
   assert.equal(metrics.constructors, 0)
   assert.equal(metrics.initializations, 0)
   assert.equal(fake.autoDownload, false)
@@ -123,8 +125,8 @@ async function run () {
   const journal = JSON.parse(fs.readFileSync(path.join(profile, 'startup-inputs.json'), 'utf8'))
   assert.deepEqual(journal.inputs, [{ kind: 'magnet', uri: launchInput }])
   fs.writeFileSync(path.join(scratch, 'startup-error.png'), (await startup.webContents.capturePage()).toPNG())
-  // Check a small monitor while preserving the real fullscreen start above.
-  startup.setFullScreen(false); startup.setSize(900, 600)
+  // The update view fills the app window, including its minimum size.
+  startup.setSize(620, 480)
   await pause(100)
   assert.equal(await evaluate('return document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight'), false)
   await evaluate('document.getElementById("startup-continue").click()')
@@ -134,7 +136,7 @@ async function run () {
   assert.equal(startup.isDestroyed(), true)
   assert.equal(fs.existsSync(path.join(profile, 'startup-inputs.json')), false)
   assert.equal(fs.readFileSync(path.join(profile, 'state.json'), 'utf8'), sentinel)
-  console.log(JSON.stringify({ ok: true, root: process.env.TERN_SMOKE_APP_ROOT ? 'packaged' : 'source', fullscreen: true, noEngineBeforeContinue: true, scopedIpc: true, downloadProgress: 37, retry: true, installationError: true, preservedImport: true, ...metrics }))
+  console.log(JSON.stringify({ ok: true, root: process.env.TERN_SMOKE_APP_ROOT ? 'packaged' : 'source', fullscreen: false, windowed: true, noEngineBeforeContinue: true, scopedIpc: true, downloadProgress: 37, retry: true, installationError: true, preservedImport: true, ...metrics }))
 }
 
 app.whenReady().then(run).then(() => { Module._load = load; app.quit() }).catch((err) => {

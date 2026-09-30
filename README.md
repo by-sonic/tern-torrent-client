@@ -54,7 +54,7 @@ Windows does not let apps claim file types silently. Tern's **Make default** but
 
 ## Automatic updates
 
-Before opening the torrent window or starting the engine, Tern checks GitHub Releases on a full-screen update screen. If a new version is available, it downloads, installs and restarts automatically. If the check or download fails, you can retry or choose **Launch Tern** to use the installed version.
+Before opening the torrent window or starting the engine, Tern checks GitHub Releases on an update page that fills a normal Tern window. It does not switch the monitor to full-screen mode. If a new version is available, it downloads, installs and restarts automatically. If the check or download fails, you can retry or choose **Launch Tern** to use the installed version.
 
 Additional checks run every six hours while Tern is open. Disable these under **Settings → Check for updates in the background**. This setting does not disable the startup check. Background updates still use a banner and install on restart. Downloads are verified against the SHA-512 in the release's `latest.yml`.
 
@@ -117,7 +117,7 @@ Issues and pull requests are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.
 - **Выбор файлов** — перед загрузкой видно все файлы торрента, ненужные можно отключить, а позже передумать.
 - **Живая карта кусков** — полоса и мозаика показывают, как торрент собирается на самом деле.
 - **Лимиты скорости и очередь** — ограничение загрузки и отдачи, число одновременных загрузок, порядок очереди.
-- **Автообновление** — Tern проверяет релизы этого репозитория, скачивает новую версию в фоне и ставит её при перезапуске. Отключается в настройках.
+- **Автообновление** — перед запуском Tern проверяет, скачивает и устанавливает новую версию на странице внутри обычного окна. При ошибке можно повторить попытку или запустить текущую версию. Дополнительные проверки в фоне отключаются в настройках.
 - **Работа из трея**, автозапуск вместе с Windows, светлая и тёмная темы, поиск и сортировка.
 
 ### Установка
