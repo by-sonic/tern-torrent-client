@@ -1,7 +1,7 @@
-.startup-header { position: fixed; inset: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 28px 36px; }
+.startup-header { position: fixed; inset: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 28px 36px; -webkit-app-region: drag; }
 .startup-brand { display: flex; align-items: center; gap: 12px; font: 600 25px/1 var(--display); letter-spacing: -.025em; }
 .startup-brand img { object-fit: contain; }
-.startup-close { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 11px; background: transparent; color: var(--muted); font: 300 28px/1 var(--body); }
+.startup-close { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 11px; background: transparent; color: var(--muted); font: 300 28px/1 var(--body); -webkit-app-region: no-drag; }
 .startup-close:hover { color: var(--ink); background: var(--panel); }
 .startup-main { display: grid; align-items: center; min-height: 100vh; padding: 110px 36px 88px; }
 .startup-content { width: min(640px, 100%); margin: 0 auto; }

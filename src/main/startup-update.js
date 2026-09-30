@@ -146,7 +146,7 @@ function clearStartupInputs (userData) {
 /** A separately scoped sandbox. Its IPC cannot invoke the torrent or settings API. */
 function createStartupWindow ({ BrowserWindow, ipcMain, controller, root, icon, backgroundColor, onClose }) {
   const win = new BrowserWindow({
-    width: 980, height: 720, fullscreen: true, frame: false, show: false, title: 'Tern — обновление', icon, backgroundColor,
+    width: 980, height: 720, minWidth: 620, minHeight: 480, fullscreen: false, frame: false, show: false, title: 'Tern — обновление', icon, backgroundColor,
     webPreferences: { preload: path.join(root, 'src', 'preload', 'startup.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false }
   })
   win.setMenuBarVisibility(false)

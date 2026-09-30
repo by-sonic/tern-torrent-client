@@ -1,7 +1,7 @@
 {
   "name": "tern",
   "productName": "Tern",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Tern is a fast, minimal BitTorrent client for Windows: magnet links, selective file download, speed limits, queue and automatic updates.",
   "author": {
     "name": "by-sonic",
