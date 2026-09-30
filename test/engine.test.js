@@ -260,7 +260,7 @@ test('original source receipt persists across restart and prepared removal survi
   const saved = JSON.parse(fs.readFileSync(path.join(swarm.root, 'state.json'), 'utf8'))
   assert.equal(saved.torrents[0].id, id, 'preparation does not drop the persistent record')
   assert.equal(saved.torrents[0].paused, true)
-  assert.equal(saved.torrents[0].sourceTorrent.path, fs.realpathSync(swarm.torrentPath))
+  assert.equal(saved.torrents[0].sourceTorrent.path, await fs.promises.realpath(swarm.torrentPath))
   await first.shutdown()
   const restarted = await swarm.engine({ trash: async (target) => { calls.push(target); fs.rmSync(target) } })
   const result = await restarted.remove(id, { trash: true })
@@ -326,7 +326,7 @@ test('legacy records can remember a reimported source; unconfirmed imports prese
   const { swarm, engine, id } = await pausedRemovalFixture(t)
   engine.entries.get(id).sourceTorrent = null
   assert.equal((await engine.add({ kind: 'file', path: swarm.torrentPath })).duplicate, true)
-  assert.equal(engine.entries.get(id).sourceTorrent.path, fs.realpathSync(swarm.torrentPath))
+  assert.equal(engine.entries.get(id).sourceTorrent.path, await fs.promises.realpath(swarm.torrentPath))
   engine.entries.get(id).stage = 'choosing'
   const result = await engine.remove(id, { trash: true })
   assert.equal(result.trashed, 1, 'only the tracked original is eligible before confirming a download')
@@ -365,7 +365,7 @@ test('canonical cached torrent sources are never granted native trash authority'
   engine.entries.get(id).sourceTorrent = null
   const cached = engine._torrentFile(id)
   assert.equal((await engine.add({ kind: 'file', path: cached })).duplicate, true)
-  assert.equal(engine.entries.get(id).sourceTorrent.path, fs.realpathSync(cached))
+  assert.equal(engine.entries.get(id).sourceTorrent.path, await fs.promises.realpath(cached))
   const result = await engine.remove(id, { trash: true })
   assert.deepEqual(calls.map((target) => path.basename(target)).sort(), ['a.bin', 'b.bin'])
   assert.equal(result.sourceUnavailable, true)

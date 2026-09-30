@@ -65,7 +65,7 @@ function startService () {
   engine = new EngineService({
     userData, defaultDir: downloads, clientOptions: OFFLINE,
     trash: async (target) => {
-      const original = fs.realpathSync(originalTorrent)
+      const original = await fs.promises.realpath(originalTorrent)
       assert.ok([path.join(downloads, 'fixture.bin'), original].includes(target))
       trashed.push(target)
       await fs.promises.rename(target, path.join(root, target === original ? 'trashed-original.torrent' : 'trashed.bin'))
@@ -111,7 +111,7 @@ app.whenReady().then(async () => {
   assert.equal(saved.version, 1)
   assert.equal(saved.torrents[0].id, id)
   assert.equal(saved.torrents[0].paused, true)
-  assert.equal(saved.torrents[0].sourceTorrent.path, fs.realpathSync(originalTorrent))
+  assert.equal(saved.torrents[0].sourceTorrent.path, await fs.promises.realpath(originalTorrent))
   assert.ok(saved.torrents[0].progressBytes > 0)
 
   await startService()
