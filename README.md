@@ -1,3 +1,10 @@
+<!-- SUPPORT-START -->
+<p align="center">
+  <b>💛 Support the project</b> · <b>USDT</b> (Tether) on <b>TRC20</b>:<br/>
+  <code>TEHHyPSeZ7t5vfVJmjtEBkqJdpfcrm1wqg</code>
+</p>
+<!-- SUPPORT-END -->
+
 <h1 align="center">
   <img src="assets/logo.png" alt="Tern torrent client logo: a blue tern in flight" height="84"><br>
   Tern — a fast, minimal BitTorrent client for Windows
